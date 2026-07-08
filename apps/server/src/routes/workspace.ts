@@ -18,13 +18,14 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
             version: z.number(),
             owner: z.string(),
             databasePath: z.string(),
+            schemaVersion: z.string(),
             status: z.string(),
           }).nullable(),
         }),
       },
     },
   }, async (request, reply) => {
-    const ws = manager.getActiveWorkspace();
+    const ws = manager.active();
     return {
       active: !!ws,
       workspace: ws,
@@ -45,7 +46,7 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
       },
     },
   }, async () => {
-    return manager.getRecentWorkspaces();
+    return manager.recent();
   });
 
   // POST open workspace
@@ -53,6 +54,7 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
     schema: {
       body: z.object({
         path: z.string().min(1),
+        force: z.boolean().default(false),
       }),
       response: {
         200: z.object({
@@ -62,19 +64,21 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
             name: z.string(),
             version: z.number(),
             owner: z.string(),
+            schemaVersion: z.string(),
             status: z.string(),
           }),
         }),
         400: z.object({
           success: z.literal(false),
           error: z.string(),
+          crashed: z.boolean().optional(),
         }),
       },
     },
   }, async (request, reply) => {
-    const { path: wsPath } = request.body;
+    const { path: wsPath, force } = request.body;
     try {
-      const ws = manager.openWorkspace(wsPath);
+      const ws = manager.open(wsPath, force);
       return {
         success: true as const,
         workspace: {
@@ -82,14 +86,21 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
           name: ws.name,
           version: ws.version,
           owner: ws.owner,
+          schemaVersion: ws.schemaVersion,
           status: ws.status,
         },
       };
     } catch (err: any) {
       reply.status(400);
+
+      // Check if it's a crashed session lock to prompt recovery in UI
+      const val = manager.validate(wsPath);
+      const isCrashed = val.lockStatus === "crashed";
+
       return {
         success: false as const,
         error: err.message || "Failed to open workspace",
+        crashed: isCrashed,
       };
     }
   });
@@ -110,6 +121,7 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
             name: z.string(),
             version: z.number(),
             owner: z.string(),
+            schemaVersion: z.string(),
             status: z.string(),
           }),
         }),
@@ -122,7 +134,7 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
   }, async (request, reply) => {
     const { path: wsPath, name, owner } = request.body;
     try {
-      const ws = await manager.createWorkspace(wsPath, name, owner);
+      const ws = await manager.create(wsPath, name, owner);
       return {
         success: true as const,
         workspace: {
@@ -130,6 +142,7 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
           name: ws.name,
           version: ws.version,
           owner: ws.owner,
+          schemaVersion: ws.schemaVersion,
           status: ws.status,
         },
       };
@@ -152,7 +165,7 @@ export function registerWorkspaceRoutes(fastify: FastifyInstance, manager: Works
       },
     },
   }, async () => {
-    manager.closeWorkspace();
-    return { success: true };
+    manager.close();
+    return { success: true as const };
   });
 }

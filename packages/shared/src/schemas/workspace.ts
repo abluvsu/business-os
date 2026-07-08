@@ -6,6 +6,7 @@ export const WorkspaceYamlSchema = z.object({
   created_at: z.string(), // ISO date or simple date format
   owner: z.string().min(1),
   schema: z.string(),
+  schemaVersion: z.string().default("1.0.0"),
   database: z.string(),
   status: z.enum(["active", "inactive"]).default("active"),
 });

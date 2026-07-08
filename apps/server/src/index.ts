@@ -25,14 +25,20 @@ registerWorkspaceRoutes(fastify, manager);
 
 // Health check
 fastify.get("/health", async () => {
-  return { status: "ok", time: new Date().toISOString() };
+  const ws = manager.active();
+  return {
+    workspace: ws ? "opened" : "closed",
+    database: ws ? "connected" : "disconnected",
+    version: "0.0.1",
+    uptime: process.uptime(),
+  };
 });
 
 // Handle graceful shutdown to release active workspace lock file
 const shutdown = async () => {
   fastify.log.info("Shutting down gracefully...");
   try {
-    manager.closeWorkspace();
+    manager.close();
   } catch (err) {
     fastify.log.error(err);
   }

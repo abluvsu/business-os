@@ -15,7 +15,6 @@ import {
   AlertCircle,
   Clock,
   Terminal,
-  TrendingUp,
   Inbox
 } from "lucide-react";
 
@@ -25,6 +24,7 @@ interface Workspace {
   version: number;
   owner: string;
   databasePath: string;
+  schemaVersion: string;
   status: string;
 }
 
@@ -40,7 +40,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
-  const [serverHealth, setServerHealth] = useState<{ status: string; time: string } | null>(null);
+  const [serverHealth, setServerHealth] = useState<{ workspace: string; database: string; version: string; uptime: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Forms
@@ -51,6 +51,10 @@ export default function Home() {
 
   const [showOpenForm, setShowOpenForm] = useState(false);
   const [openPath, setOpenPath] = useState("");
+
+  // Crash Recovery
+  const [showCrashedModal, setShowCrashedModal] = useState(false);
+  const [pendingPath, setPendingPath] = useState("");
 
   // Navigation state
   const [activeTab, setActiveTab] = useState<"dashboard" | "connectors" | "reports" | "settings">("dashboard");
@@ -143,27 +147,39 @@ export default function Home() {
         setOpenPath("");
         checkStatus();
       } else {
-        setErrorMsg(data.error);
+        if (data.crashed) {
+          setPendingPath(openPath);
+          setShowCrashedModal(true);
+          setShowOpenForm(false);
+          setOpenPath("");
+        } else {
+          setErrorMsg(data.error);
+        }
       }
     } catch (err) {
       setErrorMsg("Failed to open workspace. Check if locked or invalid path.");
     }
   };
 
-  const handleOpenPath = async (pathString: string) => {
+  const handleOpenPath = async (pathString: string, force: boolean = false) => {
     setErrorMsg(null);
     try {
       const res = await fetch(`${API_BASE}/api/workspace/open`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: pathString }),
+        body: JSON.stringify({ path: pathString, force }),
       });
       const data = await res.json();
       if (data.success) {
         setActiveWorkspace(data.workspace);
         checkStatus();
       } else {
-        setErrorMsg(data.error);
+        if (data.crashed) {
+          setPendingPath(pathString);
+          setShowCrashedModal(true);
+        } else {
+          setErrorMsg(data.error);
+        }
       }
     } catch (err) {
       setErrorMsg("Failed to open workspace path. Directory might have been moved or locked.");
@@ -220,7 +236,7 @@ export default function Home() {
             </div>
             <button 
               onClick={handleClose}
-              className="flex items-center gap-2 text-xs border border-white/10 bg-white/5 hover:bg-red-500/10 hover:border-red-500/30 text-neutral-300 hover:text-red-400 px-3  py-1.5 rounded-md transition-all font-mono"
+              className="flex items-center gap-2 text-xs border border-white/10 bg-white/5 hover:bg-red-500/10 hover:border-red-500/30 text-neutral-300 hover:text-red-400 px-3 py-1.5 rounded-md transition-all font-mono"
             >
               <LogOut className="h-3.5 w-3.5" />
               UNMOUNT
@@ -316,7 +332,7 @@ export default function Home() {
                     </div>
                     <div className="mt-4 flex items-center gap-2 text-xs text-emerald-400">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Clean Schema (marketing-v1)</span>
+                      <span>Clean Schema ({activeWorkspace.schemaVersion})</span>
                     </div>
                   </div>
 
@@ -330,7 +346,7 @@ export default function Home() {
                     </div>
                     <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500 font-mono">
                       <Clock className="h-3.5 w-3.5" />
-                      <span>{serverHealth ? new Date(serverHealth.time).toLocaleTimeString() : "N/A"}</span>
+                      <span>Uptime: {serverHealth ? Math.floor(serverHealth.uptime) : 0}s</span>
                     </div>
                   </div>
                 </div>
@@ -519,9 +535,47 @@ export default function Home() {
           </div>
         )}
 
+        {/* Crashed Recovery Modal */}
+        {showCrashedModal && (
+          <div className="p-6 rounded-xl border border-yellow-500/20 bg-yellow-500/5 space-y-4 shadow-xl">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="text-xs font-semibold font-mono text-yellow-300">PREVIOUS SESSION CRASHED</h3>
+                <p className="text-xs text-neutral-400 leading-relaxed">
+                  A lock file was found for this workspace directory, but the process that locked it is no longer running on your system. Would you like to break the lock and mount it?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenPath(pendingPath, true);
+                  setShowCrashedModal(false);
+                }}
+                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-neutral-950 text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
+              >
+                RECOVER & MOUNT
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCrashedModal(false);
+                  setPendingPath("");
+                }}
+                className="flex-1 bg-transparent hover:bg-white/5 border border-white/10 text-neutral-400 hover:text-white text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
+              >
+                CANCEL
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Dashboard Actions */}
         <div className="grid grid-cols-1 gap-4">
-          {!showCreateForm && !showOpenForm && (
+          {!showCreateForm && !showOpenForm && !showCrashedModal && (
             <>
               <button
                 onClick={() => {
@@ -665,7 +719,7 @@ export default function Home() {
         </div>
 
         {/* Recent workspaces section */}
-        {recentWorkspaces.length > 0 && !showCreateForm && !showOpenForm && (
+        {recentWorkspaces.length > 0 && !showCreateForm && !showOpenForm && !showCrashedModal && (
           <div className="space-y-3">
             <h4 className="text-[10px] font-mono text-neutral-600 font-bold uppercase tracking-wider">RECENT WORKSPACES</h4>
             <div className="space-y-2">

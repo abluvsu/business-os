@@ -1,18 +1,18 @@
 # SPRINT 000
 
 ## Purpose
-
-_TODO_
+Build a stable, type-safe, local-first monorepo foundation.
 
 ## Scope
-
-_TODO_
+- Workspace skeletons
+- Workspace manager
+- Fastify server setup
+- Next.js frontend setup
 
 ## Checklist
-
-- [ ] Define
-- [ ] Review
-- [ ] Implement
+- [x] Define
+- [x] Review
+- [x] Implement
 
 ## Notes
-
+- Completed and pushed to remote. Tagged as v0.0.1-foundation.
