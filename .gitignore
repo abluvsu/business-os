@@ -1,0 +1,26 @@
+# Dependency folders
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# TypeScript build output
+dist/
+
+# Local database and system folders
+workspace/
+*.sqlite
+*.lock
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Operating System files
+.DS_Store
+Thumbs.db

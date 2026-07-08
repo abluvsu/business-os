@@ -1,0 +1,15 @@
+{
+  "name": "business-os",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Business OS MVP Foundation Monorepo",
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
