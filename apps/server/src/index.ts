@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { validatorCompiler, serializerCompiler } from "fastify-type-provider-zod";
 import { WorkspaceManager } from "@business-os/workspace";
 import { registerWorkspaceRoutes } from "./routes/workspace";
+import { registerMarketingRoutes } from "./routes/marketing";
 
 const fastify = Fastify({
   logger: true,
@@ -22,6 +23,7 @@ const manager = new WorkspaceManager();
 
 // Register Workspace routes
 registerWorkspaceRoutes(fastify, manager);
+registerMarketingRoutes(fastify);
 
 // Health check
 fastify.get("/health", async () => {

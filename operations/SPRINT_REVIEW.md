@@ -1,37 +1,36 @@
-# Sprint 000 Review: Foundation Setup
+# Sprint 001 Review: Ask Your Business (UX Prototype)
 
 ## Goal
-Build a stable, type-safe, local-first monorepo foundation with workspaces for shared packages, backend REST API, and frontend client.
+Establish a conversational interface and side-by-side visualization boards. Ensure a founder can fully understand the product capabilities in under 60 seconds.
 
 ## Completed
-1. **Monorepo Structure**: Setup root configurations, `pnpm` workspaces, and strict TypeScript rules (`tsconfig.json`).
-2. **Shared Package (`packages/shared`)**: Defined Zod schemas and inferred types for workspace metadata (`workspace.yaml`) and settings (`settings.json`).
-3. **Workspace SDK (`packages/workspace`)**:
-   - Initializer: Configured workspace file structures and templates.
-   - Validator: Validates schemas, lock paths, and identifies crashes.
-   - Manager: Implements workspace active states, open/close pipelines, and capped recents history.
-4. **Backend Server (`apps/server`)**: Custom Fastify server running on port 4000. Implements crash recovery prompts, detailed health outputs, and graceful shutdown lock cleanup. Swapped `better-sqlite3` for Node's native `node:sqlite` to remove compilation dependencies.
-5. **Frontend Application (`apps/web`)**: Next.js client running on port 3000 styled with Tailwind CSS v4. Implements workspace creation panels, loading redirection, and active status control panels.
+1. **ChatGPT-like split view**: Refactored `apps/web` to split viewport between a conversational feed (left) and dynamic data panel (right).
+2. **Simulated stream typing**: Integrated typing visualizer inside the chat client to enhance readability.
+3. **Interactive Graphics**: Integrated Apache ECharts in Next.js using a responsive ref container to draw CTR bars.
+4. **Mock API Gateway**: Added Fastify routes in `/api/chat`, `/api/campaigns`, and `/api/connectors/status` to bypass LLM/integration waits.
+5. **Sidebar redesign**: Updated tabs to `Workspace` (conversations panel), `Reports`, `Knowledge` (local context database), `Connectors`, and `Settings`.
+6. **PID Lock Self-Correction**: Resolved self-locking validation loops when processes verify active states.
+7. **Decision Ledger**: Initialized `company/DECISIONS.md` tracking major architectural entries.
 
 ## Verification
-- **Compilation**: Verified clean TypeScript compilation by running `pnpm run build` at the root.
-- **E2E Manual Testing**: Executed browser flow tests simulating workspace creation, dashboard validation, crash detection, unmounting, and history loading.
+- **Builds**: Successful compilations across all 11 monorepo packages.
+- **E2E Validation**: Completed browser verification recording capturing the campaign query flow, typing animation, ECharts loading, Instagram connected display, and settings details.
 
 ## Lessons Learned
-- **Native SQLite driver (`node:sqlite`)**: Leveraging the built-in database module in Node 24 completely resolves native compiler toolchain errors (e.g. Visual Studio Desktop C++ workload requirements for `node-gyp`), lowering onboarding friction.
-- **Pnpm Settings**: Project configurations like `onlyBuiltDependencies` must be placed in `pnpm-workspace.yaml` in newer versions of pnpm.
+- **Mock-driven design**: Designing mockup endpoints first unblocks frontend UX optimization and speeds up feedback loops.
+- **Process Boundaries**: Active checks must distinguish current process IDs from external locking PIDs to prevent self-exclusion.
 
 ## Technical Debt
-- Postponed database schema migrations and relational tables definition until data structures are finalized in Sprint 003.
+- Real LLM semantic routers and Instagram data ingestion schema mappings.
 
 ## Deferred
-- Background synchronization cron-jobs and event loops (V1 scheduled manual importers).
+- Context-Engine memory retrieval and vector embeddings.
 
 ## Risks
-- Direct folder path inputs: File permission issues might block lock creation if path points to system directories. Added path error validation.
+- Client-side ECharts load sizes (handled via custom rendering wrappers).
 
 ## Next Sprint
-- **Sprint 001**: Shift focus to User Experience. Establish a ChatGPT-like dashboard layout, sidebar layout, interactive mock AI messaging, empty chart boards, and mock campaigns.
+- **Sprint 002 (Connect Instagram)**: Shift from mock APIs to real data ingestion. Authenticate and pull real Instagram campaign metrics and post logs.
 
 ## Merge Decision
-- **APPROVED**: Merging to `main`, tagged `v0.0.1-foundation`.
+- **APPROVED**: Merging to `main` branch, tagged `v0.0.2-ask-your-business`.

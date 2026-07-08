@@ -8,15 +8,22 @@ import {
   Layers, 
   FileText, 
   User, 
-  Info, 
   LogOut, 
   Activity, 
   CheckCircle2, 
   AlertCircle,
   Clock,
   Terminal,
-  Inbox
+  Inbox,
+  BookOpen,
+  Wifi,
+  Instagram,
+  Mail,
+  Search,
+  Globe
 } from "lucide-react";
+import ChatArea from "../components/chat-area";
+import VisualizationPanel, { ChartConfig } from "../components/visualization-panel";
 
 interface Workspace {
   path: string;
@@ -34,6 +41,13 @@ interface RecentWorkspace {
   lastOpened: string;
 }
 
+interface ConnectorStatuses {
+  instagram: { connected: boolean; lastSync: string | null };
+  gmail: { connected: boolean; lastSync: string | null };
+  googleAds: { connected: boolean; lastSync: string | null };
+  website: { connected: boolean; lastSync: string | null };
+}
+
 const API_BASE = "http://127.0.0.1:4000";
 
 export default function Home() {
@@ -41,7 +55,12 @@ export default function Home() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
   const [serverHealth, setServerHealth] = useState<{ workspace: string; database: string; version: string; uptime: number } | null>(null);
+  const [connectorStatus, setConnectorStatus] = useState<ConnectorStatuses | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // ECharts States bubbled up from Chat
+  const [activeChart, setActiveChart] = useState<ChartConfig | null>(null);
+  const [activeRecs, setActiveRecs] = useState<string[]>([]);
 
   // Forms
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -57,7 +76,7 @@ export default function Home() {
   const [pendingPath, setPendingPath] = useState("");
 
   // Navigation state
-  const [activeTab, setActiveTab] = useState<"dashboard" | "connectors" | "reports" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"workspace" | "reports" | "knowledge" | "connectors" | "settings">("workspace");
 
   // Fetch server status & workspace metadata
   const checkStatus = async () => {
@@ -83,6 +102,13 @@ export default function Home() {
       if (recentRes.ok) {
         const recentData = await recentRes.json();
         setRecentWorkspaces(recentData);
+      }
+
+      // 4. Connector status
+      const connectorRes = await fetch(`${API_BASE}/api/connectors/status`).catch(() => null);
+      if (connectorRes && connectorRes.ok) {
+        const connData = await connectorRes.json();
+        setConnectorStatus(connData);
       }
       
       setErrorMsg(null);
@@ -198,6 +224,11 @@ export default function Home() {
     }
   };
 
+  const handleUpdateVisualization = (chart: ChartConfig | null, recommendations: string[]) => {
+    setActiveChart(chart);
+    setActiveRecs(recommendations);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center flex-col">
@@ -251,26 +282,15 @@ export default function Home() {
               <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-wider font-mono">Navigation</p>
             </div>
             <button
-              onClick={() => setActiveTab("dashboard")}
+              onClick={() => setActiveTab("workspace")}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "dashboard"
+                activeTab === "workspace"
                   ? "bg-white/5 border border-white/10 text-white font-semibold"
                   : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
               }`}
             >
               <Layers className="h-4 w-4" />
-              Workspace Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("connectors")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "connectors"
-                  ? "bg-white/5 border border-white/10 text-white font-semibold"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <FolderOpen className="h-4 w-4" />
-              Data Connectors
+              Workspace
             </button>
             <button
               onClick={() => setActiveTab("reports")}
@@ -281,7 +301,29 @@ export default function Home() {
               }`}
             >
               <FileText className="h-4 w-4" />
-              Insight Reports
+              Reports
+            </button>
+            <button
+              onClick={() => setActiveTab("knowledge")}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === "knowledge"
+                  ? "bg-white/5 border border-white/10 text-white font-semibold"
+                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
+              }`}
+            >
+              <BookOpen className="h-4 w-4" />
+              Knowledge
+            </button>
+            <button
+              onClick={() => setActiveTab("connectors")}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === "connectors"
+                  ? "bg-white/5 border border-white/10 text-white font-semibold"
+                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
+              }`}
+            >
+              <FolderOpen className="h-4 w-4" />
+              Connectors
             </button>
             <button
               onClick={() => setActiveTab("settings")}
@@ -292,7 +334,7 @@ export default function Home() {
               }`}
             >
               <Settings className="h-4 w-4" />
-              System Settings
+              Settings
             </button>
 
             <div className="mt-auto border-t border-white/5 pt-4 px-2">
@@ -303,208 +345,201 @@ export default function Home() {
             </div>
           </aside>
 
-          {/* Main Workspace Frame */}
-          <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
-            {activeTab === "dashboard" && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div>
-                  <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Active Workspace</h1>
-                  <p className="text-neutral-500 text-sm mt-1">Operational view of the mounted company container.</p>
+          {/* Main Layout Area */}
+          <div className="flex-1 flex overflow-hidden">
+            {activeTab === "workspace" && (
+              <>
+                {/* 2/3 Chat Area */}
+                <div className="flex-1 flex flex-col min-w-0">
+                  <ChatArea onUpdateVisualization={handleUpdateVisualization} />
                 </div>
-
-                {/* Dashboard Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="p-5 rounded-xl bg-white/3 border border-white/5 shadow-xl flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-neutral-500 font-mono uppercase">Company Name</p>
-                      <h3 className="text-lg font-semibold text-neutral-200 mt-1">{activeWorkspace.name}</h3>
-                    </div>
-                    <div className="mt-4 flex items-center gap-2 text-xs text-neutral-400">
-                      <User className="h-3.5 w-3.5" />
-                      <span>{activeWorkspace.owner} (Owner)</span>
-                    </div>
-                  </div>
-
-                  <div className="p-5 rounded-xl bg-white/3 border border-white/5 shadow-xl flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-neutral-500 font-mono uppercase">Engine Version</p>
-                      <h3 className="text-lg font-semibold text-neutral-200 mt-1">v{activeWorkspace.version}.0.0</h3>
-                    </div>
-                    <div className="mt-4 flex items-center gap-2 text-xs text-emerald-400">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Clean Schema ({activeWorkspace.schemaVersion})</span>
-                    </div>
-                  </div>
-
-                  <div className="p-5 rounded-xl bg-[#0e0e13]/60 border border-white/5 shadow-xl flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-neutral-500 font-mono uppercase">Fastify Server State</p>
-                      <h3 className="text-lg font-semibold text-emerald-400 mt-1 flex items-center gap-2">
-                        Online
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                      </h3>
-                    </div>
-                    <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500 font-mono">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>Uptime: {serverHealth ? Math.floor(serverHealth.uptime) : 0}s</span>
-                    </div>
-                  </div>
+                {/* 1/3 ECharts Panel */}
+                <div className="w-[30rem] bg-[#08080a] overflow-y-auto shrink-0 border-l border-white/5">
+                  <VisualizationPanel chart={activeChart} recommendations={activeRecs} />
                 </div>
-
-                {/* File details panel */}
-                <div className="rounded-xl border border-white/5 bg-[#0a0a0c] p-6 shadow-md space-y-4">
-                  <div className="flex items-center gap-2 border-b border-white/5 pb-3">
-                    <Terminal className="h-4 w-4 text-neutral-400" />
-                    <h3 className="text-sm font-semibold font-mono text-neutral-200">Local Paths & Directories</h3>
-                  </div>
-
-                  <div className="space-y-3 font-mono text-xs">
-                    <div>
-                      <p className="text-neutral-500">Root Directory Path</p>
-                      <p className="text-neutral-300 bg-white/2 p-2 rounded mt-1 border border-white/5 select-all">{activeWorkspace.path}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-neutral-500">Relational Store (SQLite)</p>
-                      <p className="text-neutral-300 bg-white/2 p-2 rounded mt-1 border border-white/5 select-all">{activeWorkspace.databasePath}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sync status */}
-                <div className="rounded-xl border border-white/5 bg-white/2 p-6 flex items-start gap-4 shadow-sm">
-                  <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-neutral-200">System Initialized Successfully</h4>
-                    <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                      All system directories (`connectors/`, `generated/`, `reports/`, `uploads/`, `logs/`, `cache/`) have been successfully established in the target workspace. Drizzle migrations and locks are operational.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              </>
             )}
 
             {activeTab === "connectors" && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div>
-                  <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Data Connectors</h1>
-                  <p className="text-neutral-500 text-sm mt-1">Configure sources to sync marketing conversations and analytics metrics.</p>
+              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div>
+                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Data Connectors</h1>
+                    <p className="text-neutral-500 text-sm mt-1">Configure sources to sync marketing conversations and analytics metrics.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Instagram - Active Mock */}
+                    <div className="border border-emerald-500/20 rounded-xl bg-emerald-500/3 p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm text-white flex items-center gap-2">
+                            <Instagram className="h-4 w-4 text-emerald-400" />
+                            Instagram Connector
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 rounded flex items-center gap-1">
+                            <Wifi className="h-2.5 w-2.5 animate-pulse" />
+                            CONNECTED
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-2">
+                          Successfully importing profile statistics, reach metrics, CTR indices, and posts.
+                        </p>
+                        <div className="mt-3 p-2 bg-white/2 rounded border border-white/5 text-[10px] text-neutral-400 font-mono">
+                          Last Synced: {connectorStatus?.instagram.lastSync ? new Date(connectorStatus.instagram.lastSync).toLocaleTimeString() : "N/A"}
+                        </div>
+                      </div>
+                      <button className="mt-4 w-full text-xs border border-white/10 hover:bg-white/5 text-neutral-300 py-2 rounded-lg font-mono transition-colors">
+                        CONFIGURE CONNECTOR
+                      </button>
+                    </div>
+
+                    {/* Gmail - Unconnected */}
+                    <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm text-neutral-200 flex items-center gap-2">
+                            <Mail className="h-4 w-4" />
+                            Gmail Connector
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 004</span>
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-2">Pulls marketing and sales conversations, matching client-side query filters.</p>
+                      </div>
+                      <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
+                    </div>
+
+                    {/* Google Ads - Unconnected */}
+                    <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm text-neutral-200 flex items-center gap-2">
+                            <Search className="h-4 w-4" />
+                            Google Ads Connector
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 005</span>
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-2">Retrieves keywords, campaigns, daily metric snapshots, and conversions.</p>
+                      </div>
+                      <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
+                    </div>
+
+                    {/* Website - Unconnected */}
+                    <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm text-neutral-200 flex items-center gap-2">
+                            <Globe className="h-4 w-4" />
+                            Website Scraping
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 006</span>
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-2">Extracts brand architecture, positioning, and products from root domains.</p>
+                      </div>
+                      <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm text-neutral-200">Instagram Connector</span>
-                        <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 003</span>
-                      </div>
-                      <p className="text-xs text-neutral-400 mt-2">Imports accounts, campaign metrics, profiles, reach, CTR, and posts.</p>
-                    </div>
-                    <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
-                  </div>
-
-                  <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm text-neutral-200">Gmail Connector</span>
-                        <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 004</span>
-                      </div>
-                      <p className="text-xs text-neutral-400 mt-2">Pulls marketing and sales conversations, matching client-side query filters.</p>
-                    </div>
-                    <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
-                  </div>
-
-                  <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm text-neutral-200">Google Ads Connector</span>
-                        <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 005</span>
-                      </div>
-                      <p className="text-xs text-neutral-400 mt-2">Retrieves keywords, campaigns, daily metric snapshots, and conversions.</p>
-                    </div>
-                    <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
-                  </div>
-
-                  <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm text-neutral-200">Website Scraping Connector</span>
-                        <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 006</span>
-                      </div>
-                      <p className="text-xs text-neutral-400 mt-2">Extracts brand architecture, positioning, and products from root domains.</p>
-                    </div>
-                    <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
-                  </div>
-                </div>
-              </div>
+              </main>
             )}
 
             {activeTab === "reports" && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div>
-                  <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Insight Reports</h1>
-                  <p className="text-neutral-500 text-sm mt-1">Central repository for compiled marketing analysis reports.</p>
-                </div>
-
-                <div className="border border-white/5 rounded-xl bg-white/2 p-8 text-center space-y-3">
-                  <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-neutral-500">
-                    <Inbox className="h-6 w-6" />
-                  </div>
+              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
+                <div className="max-w-4xl mx-auto space-y-6">
                   <div>
-                    <h3 className="font-semibold text-neutral-300">No Reports Yet</h3>
-                    <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
-                      Once sync reports and marketing analysis documents are created, they will be saved here in Markdown files.
-                    </p>
+                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Insight Reports</h1>
+                    <p className="text-neutral-500 text-sm mt-1">Central repository for compiled marketing analysis reports.</p>
+                  </div>
+
+                  <div className="border border-white/5 rounded-xl bg-white/2 p-8 text-center space-y-3">
+                    <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-neutral-500">
+                      <Inbox className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-neutral-300">No Reports Yet</h3>
+                      <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
+                        Once sync reports and marketing analysis documents are created, they will be saved here in Markdown files.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </main>
+            )}
+
+            {activeTab === "knowledge" && (
+              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div>
+                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Business Knowledge</h1>
+                    <p className="text-neutral-500 text-sm mt-1">Local context database, facts, and rules managed by context engines.</p>
+                  </div>
+
+                  <div className="border border-white/5 rounded-xl bg-white/2 p-8 text-center space-y-3">
+                    <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-neutral-500">
+                      <BookOpen className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-neutral-300">No Custom Knowledge Loaded</h3>
+                      <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
+                        You can drop text files or PDF assets in the `businessos/uploads/` directory to expand local AI context.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </main>
             )}
 
             {activeTab === "settings" && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                <div>
-                  <h1 className="text-2xl font-bold font-mono tracking-tight text-white">System Settings</h1>
-                  <p className="text-neutral-500 text-sm mt-1">Configure active parameters, syncing schedules, and database updates.</p>
+              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div>
+                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">System Settings</h1>
+                    <p className="text-neutral-500 text-sm mt-1">Configure active parameters, syncing schedules, and database updates.</p>
+                  </div>
+
+                  <div className="border border-white/5 rounded-xl bg-white/2 p-6 space-y-6">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                      <div>
+                        <h4 className="text-sm font-semibold text-neutral-200">Active Container Path</h4>
+                        <p className="text-xs text-neutral-400 mt-0.5">{activeWorkspace.path}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                      <div>
+                        <h4 className="text-sm font-semibold text-neutral-200">Schema Version</h4>
+                        <p className="text-xs text-neutral-400 mt-0.5">Schema version configured: {activeWorkspace.schemaVersion}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                      <div>
+                        <h4 className="text-sm font-semibold text-neutral-200">System Theme</h4>
+                        <p className="text-xs text-neutral-400 mt-0.5">Adapt screen colors to system settings.</p>
+                      </div>
+                      <select disabled className="bg-neutral-800 border border-white/10 rounded px-2.5 py-1 text-xs text-neutral-300 font-mono">
+                        <option>Dark Mode (Default)</option>
+                        <option>Light Mode</option>
+                        <option>System Default</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-semibold text-neutral-200">Sync Frequency</h4>
+                        <p className="text-xs text-neutral-400 mt-0.5">How often local importer runs.</p>
+                      </div>
+                      <select disabled className="bg-neutral-800 border border-white/10 rounded px-2.5 py-1 text-xs text-neutral-300 font-mono">
+                        <option>Manual Sync Only (V1)</option>
+                        <option>Hourly</option>
+                        <option>Daily</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="border border-white/5 rounded-xl bg-white/2 p-6 space-y-6">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                    <div>
-                      <h4 className="text-sm font-semibold text-neutral-200">System Theme</h4>
-                      <p className="text-xs text-neutral-400 mt-0.5">Adapt screen colors to system settings.</p>
-                    </div>
-                    <select disabled className="bg-neutral-800 border border-white/10 rounded px-2.5 py-1 text-xs text-neutral-300 font-mono">
-                      <option>Dark Mode (Default)</option>
-                      <option>Light Mode</option>
-                      <option>System Default</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                    <div>
-                      <h4 className="text-sm font-semibold text-neutral-200">Sync Frequency</h4>
-                      <p className="text-xs text-neutral-400 mt-0.5">How often local importer runs.</p>
-                    </div>
-                    <select disabled className="bg-neutral-800 border border-white/10 rounded px-2.5 py-1 text-xs text-neutral-300 font-mono">
-                      <option>Manual Sync Only (V1)</option>
-                      <option>Hourly</option>
-                      <option>Daily</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold text-neutral-200">Credential Vault</h4>
-                      <p className="text-xs text-neutral-400 mt-0.5">Manage encrypted local keys for integrations.</p>
-                    </div>
-                    <button disabled className="text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 px-3 py-1.5 rounded-lg font-mono">MANAGE KEYS</button>
-                  </div>
-                </div>
-              </div>
+              </main>
             )}
-          </main>
+          </div>
         </div>
       </div>
     );
