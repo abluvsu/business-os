@@ -1,0 +1,22 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Run validation scripts directly
+if git diff --cached --name-only | grep -q '\.md$'; then
+  echo "🔍 Validating documentation..."
+  
+  echo "  📋 Validating ADRs..."
+  node scripts/validate-adrs.mjs || exit 1
+  
+  echo "  📄 Checking documentation freshness..."
+  node scripts/check-docs-freshness.mjs || exit 1
+  
+  echo "  📋 Verifying Company Context compliance..."
+  node scripts/verify-context.mjs || exit 1
+fi
+
+# Run prettier on staged files
+echo "🎨 Formatting staged files..."
+npx prettier --write --ignore-unknown $(git diff --cached --name-only) || exit 1
+
+echo "✅ Pre-commit checks passed"

@@ -1,9 +1,16 @@
+import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { validatorCompiler, serializerCompiler } from "fastify-type-provider-zod";
+import {
+  validatorCompiler,
+  serializerCompiler,
+} from "fastify-type-provider-zod";
 import { WorkspaceManager } from "@business-os/workspace";
 import { registerWorkspaceRoutes } from "./routes/workspace";
 import { registerMarketingRoutes } from "./routes/marketing";
+import { registerConnectorRoutes } from "./routes/connectors";
+import { registerAnalyticsRoutes } from "./routes/analytics";
+import { startSyncWorker, syncEventEmitter } from "./sync-worker";
 
 const fastify = Fastify({
   logger: true,
@@ -23,7 +30,12 @@ const manager = new WorkspaceManager();
 
 // Register Workspace routes
 registerWorkspaceRoutes(fastify, manager);
-registerMarketingRoutes(fastify);
+registerMarketingRoutes(fastify, manager);
+registerConnectorRoutes(fastify, manager);
+registerAnalyticsRoutes(fastify, manager);
+
+// Start background delta sync polling worker
+startSyncWorker(manager);
 
 // Health check
 fastify.get("/health", async () => {
@@ -34,6 +46,26 @@ fastify.get("/health", async () => {
     version: "0.0.1",
     uptime: process.uptime(),
   };
+});
+
+// Event stream for frontend sync completion notification (SSE)
+fastify.get("/api/events", (request, reply) => {
+  reply.raw.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "Access-Control-Allow-Origin": "*",
+  });
+
+  const onSyncCompleted = (data: any) => {
+    reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  syncEventEmitter.on("sync:completed", onSyncCompleted);
+
+  request.raw.on("close", () => {
+    syncEventEmitter.off("sync:completed", onSyncCompleted);
+  });
 });
 
 // Handle graceful shutdown to release active workspace lock file

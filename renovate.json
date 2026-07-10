@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base",
+    ":automergePatch",
+    ":automergeMinor",
+    ":semanticCommits",
+    ":prHourlyLimit10"
+  ],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "groupName": "major updates"
+    },
+    {
+      "matchPackagePatterns": ["^@types/"],
+      "groupName": "types packages"
+    },
+    {
+      "matchDatasources": ["npm"],
+      "matchPackageNames": ["typescript", "zod", "drizzle-orm", "fastify"],
+      "allowedVersions": "<1.0.0 || ^1.0.0 || ^2.0.0",
+      "automerge": true
+    }
+  ],
+  "schedule": ["after 10pm on sunday"],
+  "timezone": "Asia/Kolkata",
+  "prTitle": "📦 deps: {{depName}} {{fromVersion}} → {{toVersion}}",
+  "labels": ["dependencies", "automated"]
+}

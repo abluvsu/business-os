@@ -1,0 +1,8 @@
+version: 1
+name: New Startup
+created_at: 2026-07-09
+owner: Ashutosh
+schema: marketing-v1
+schemaVersion: 1.0.0
+database: database.sqlite
+status: active

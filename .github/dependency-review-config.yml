@@ -1,0 +1,9 @@
+# Dependency Review Configuration
+# https://github.com/actions/dependency-review-action#configuration-options
+
+fail-on-severity: high
+allow-ghsas:
+  # False positives / accepted risks - document why each is allowed
+  - GHSA-xxxx-xxxx-xxxx # Example: Dev dependency only, not bundled
+
+severity-threshold: high

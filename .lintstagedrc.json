@@ -1,0 +1,7 @@
+{
+  "*.{ts,tsx,js,jsx,json,md}": ["prettier --write --ignore-unknown"],
+  "*.md": [
+    "node scripts/validate-adrs.mjs",
+    "node scripts/check-docs-freshness.mjs"
+  ]
+}

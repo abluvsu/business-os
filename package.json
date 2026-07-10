@@ -7,9 +7,73 @@
     "dev": "pnpm --parallel -r dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "prepare": "husky",
+    "validate:adrs": "node scripts/validate-adrs.mjs",
+    "validate:docs": "node scripts/check-docs-freshness.mjs",
+    "validate:context": "node scripts/verify-context.mjs",
+    "validate:all": "pnpm validate:adrs && pnpm validate:docs && pnpm validate:context",
+    "lint:staged": "lint-staged",
+    "commitlint": "commitlint"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.9.4",
     "typescript": "^5.4.5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md}": [
+      "prettier --write --ignore-unknown"
+    ],
+    "*.md": [
+      "node scripts/validate-adrs.mjs",
+      "node scripts/check-docs-freshness.mjs"
+    ]
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ],
+    "rules": {
+      "type-enum": [
+        2,
+        "always",
+        [
+          "feat",
+          "fix",
+          "docs",
+          "style",
+          "refactor",
+          "perf",
+          "test",
+          "chore",
+          "revert",
+          "adr",
+          "decision",
+          "sprint"
+        ]
+      ],
+      "subject-case": [
+        2,
+        "always",
+        "sentence-case"
+      ],
+      "subject-empty": [
+        2,
+        "never"
+      ],
+      "type-empty": [
+        2,
+        "never"
+      ],
+      "header-max-length": [
+        2,
+        "always",
+        100
+      ]
+    }
   }
 }

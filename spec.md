@@ -1,27 +1,28 @@
-# BUSINESS OS MVP SPECIFICATION
+# BUSINESS OS SYSTEM SPECIFICATION (AI CHIEF OF STAFF)
 
-This specification outlines the architecture, data structures, and implementation workflow for the local-first Business OS MVP (V1).
+This specification outlines the architecture, database schema, and data workflow for BusinessOS—a local-first, privacy-respecting AI Chief of Staff for solo founders.
 
 ---
 
 ## 1. System Architecture
 
-Business OS runs entirely locally on the user's computer. It consists of a React/Next.js frontend, a Fastify local backend, and a file-system-based workspace model using SQLite.
+BusinessOS runs entirely locally on the founder's machine. It consists of a React/Next.js frontend, a Fastify local backend, and a local SQLite workspace model.
 
 ```mermaid
 graph TD
     Browser[Browser / Next.js UI]
     Fastify[Local Fastify Server]
-    WorkspacePkg[packages/workspace]
-    SQLite[(SQLite: businessos/database.sqlite)]
-    YAML[businessos/workspace.yaml]
-    RawData[businessos/connectors/raw/]
+    EventBus[Event Bus (Analytics)]
+    ContextBuilder[Brain Context Builder]
+    Registry[Knowledge Source Registry]
+    SQLite[(SQLite: database.sqlite)]
 
-    Browser <-->|HTTP / JSON / WebSockets| Fastify
-    Fastify -->|Uses| WorkspacePkg
-    WorkspacePkg -->|Initializes & Validates| YAML
-    WorkspacePkg -->|Reads/Writes SQL| SQLite
-    WorkspacePkg -->|Manages Assets| RawData
+    Browser <-->|HTTP / WebSockets| Fastify
+    Fastify -->|Publishes Events| EventBus
+    Fastify -->|Invokes| ContextBuilder
+    Fastify -->|Syncs via| Registry
+    ContextBuilder -->|Queries| SQLite
+    Registry -->|Persists to| SQLite
 ```
 
 ---
@@ -31,114 +32,138 @@ graph TD
 ```text
 business-os/
 ├── apps/
-│   ├── web/                    # Next.js Frontend (Tailwind CSS v4, Lucide React, shadcn/ui)
-│   └── server/                 # Fastify Backend (better-sqlite3, Drizzle ORM, fastify-type-provider-zod)
+│   ├── web/                    # Next.js Frontend (Conversation & Work panels)
+│   └── server/                 # Fastify Backend (Event Bus, Context Builder, API router)
 │
 ├── packages/
-│   ├── ui/                     # Shared UI components (shadcn/ui skeleton)
-│   ├── sdk/                    # Shared TypeScript Client SDK
-│   ├── workspace/              # Workspace lifecycle SDK (create, open, validate, migrator)
-│   ├── brain-sdk/              # Decoupled LLM abstraction (Gemini, OpenRouter, Ollama)
-│   ├── connector-sdk/          # scheduled importer connector engine (Instagram, Gmail, Google Ads, Website)
-│   ├── context-engine/         # Local context processor
-│   ├── visualization/          # Chart builders (Apache ECharts)
-│   └── shared/                 # Shared types, Zod schemas, & utility functions
+│   ├── ui/                     # Shared design system components
+│   ├── sdk/                    # Shared client API bindings
+│   ├── workspace/              # Workspace lifecycle SDK (open/close, SQLite Drizzle connection)
+│   ├── brain-sdk/              # LLM integration (OpenRouter free models)
+│   ├── connector-sdk/          # Standardized Knowledge Source ingestion engine
+│   └── shared/                 # Shared types, Zod schemas, and Event Bus
 │
-├── workspace/                  # Sample local workspace for developer testing
-├── package.json                # Monorepo root package JSON
-├── pnpm-workspace.yaml         # pnpm workspace definition
-└── tsconfig.json               # Strict root TypeScript configuration
+├── workspace/                  # Test workspace
+└── tsconfig.json               # Strict TypeScript configuration
 ```
 
 ---
 
-## 3. Workspace Layout
+## 3. Database Schema (Drizzle ORM)
 
-A workspace corresponds to a folder owned by the user. Inside that folder, Business OS isolates its system files under a `businessos/` directory.
-
-```text
-User Chosen Directory/  (e.g. D:\Business\My Startup\)
-└── businessos/
-    ├── workspace.yaml       # Workspace manifest metadata
-    ├── database.sqlite      # Workspace local SQLite database
-    ├── settings.json        # Workspace credentials & configuration (local, gitignored)
-    ├── workspace.lock       # Prevents double-opening of the database
-    ├── connectors/          # Raw snapshots downloaded by connectors
-    │   ├── instagram/
-    │   └── gmail/
-    ├── generated/           # Sync reports, logs, and exports
-    ├── uploads/             # User-uploaded files and media
-    └── cache/               # Temporary caching directory
-```
-
----
-
-## 4. Database Schema (Drizzle ORM)
-
-The SQLite database acts as a relational store for normalized **business objects** and system configurations.
+The SQLite database acts as a relational store for business objects, observations, conversation sessions, and work items. Marketing terms are abstracted to canonical business primitives.
 
 ```mermaid
 erDiagram
-    WORKSPACE ||--o{ CONNECTOR : configures
-    WORKSPACE ||--o{ SETTINGS : manages
-    CONNECTOR ||--o{ CAMPAIGN : ingests
-    CONNECTOR ||--o{ CONVERSATION : ingests
-    CAMPAIGN ||--o{ METRIC : tracks
-    CAMPAIGN ||--o{ INSIGHT : generates
+    KNOWLEDGE-SOURCE ||--o{ BUSINESS-ENTITY : "discovers"
+    KNOWLEDGE-SOURCE ||--o{ OBSERVATION : "records"
+    BUSINESS-ENTITY ||--o{ OBSERVATION : "observes"
+    CONVERSATION ||--o{ CONVERSATION-MESSAGE : "contains"
+    CONVERSATION-MESSAGE ||--o| CONTEXT-SNAPSHOT : "captures"
+    WORKSPACE ||--o{ WORK-ITEM : "manages"
 ```
 
 ### Table Definitions
-1. **`workspace`**: Holds metadata, schema version, and base configurations.
-2. **`settings`**: User-specific configuration (sync preferences, user details).
-3. **`connector`**: Active connectors, credential identifiers (vault mapping), status.
-4. **`campaign`**: Standardized marketing campaigns (name, platform, status).
-5. **`metric`**: Normalized daily metrics (reach, clicks, conversions, spend, CTR) linked to campaigns.
-6. **`conversation`**: Key email conversations or lead messages.
-7. **`insight`**: System-generated insights and reasoning logs.
+
+1.  **`knowledge_sources`** (formerly data_sources):
+    - Tracks third-party connections (e.g. Gmail, Instagram, manual PDFs).
+    - Columns: `id`, `workspaceId`, `connectorId`, `status`, `displayName`, `authContext` (secure JSON credentials), `lastSyncAt`.
+2.  **`business_entities`**:
+    - Unified representation of any business unit (e.g., campaign, email contact, product, task).
+    - Columns: `id`, `workspaceId`, `sourceId` (references knowledge_sources), `externalId`, `type` ("campaign", "email", "product", "contact"), `name`, `status`, `createdAt`, `updatedAt`, `attributes` (JSON metadata).
+3.  **`observations`** (formerly timeSeriesMetrics):
+    - Decoupled records of values observed over time (e.g., ad click count, email open rate, page views, revenue).
+    - Columns: `id`, `workspaceId`, `sourceId`, `entityId` (references business_entities, nullable), `date` (UTC), `originalTimezone`, `observationType` ("clicks", "opens", "page_views", "revenue"), `value` (real), `currency`.
+4.  **`work_items`**:
+    - First-class tasks managed or executed by the AI Chief of Staff or the founder.
+    - Columns: `id`, `workspaceId`, `title`, `status` ("pending", "in_progress", "completed", "failed"), `type` ("analysis", "recommendation_execution", "manual_task", "automation"), `assignedTo` ("ai", "founder"), `details` (JSON attributes), `createdAt`, `updatedAt`.
+5.  **`conversations`**:
+    - A chat session containing context memory.
+    - Columns: `id`, `workspaceId`, `title`, `createdAt`, `updatedAt`.
+6.  **`conversation_messages`**:
+    - Individual message exchanges.
+    - Columns: `id`, `conversationId` (references conversations), `role` ("user", "assistant", "system"), `content`, `createdAt`.
+7.  **`context_snapshots`**:
+    - Saves the working memory state built by the Context Builder at a specific message step, allowing the user to resume chat threads accurately.
+    - Columns: `id`, `messageId` (references conversation_messages), `snapshot` (JSON context payload), `createdAt`.
 
 ---
 
-## 5. Startup & Initialization Lifecycle
+## 4. Knowledge Source Lifecycle (`packages/connector-sdk`)
 
-When the application launches, it attempts to load the most recent workspace. If none exists, it displays the welcome and workspace selection screen.
+Every knowledge source provider implements a standardized six-step lifecycle:
 
-```mermaid
-sequenceDiagram
-    participant App as Browser Client
-    participant API as Fastify Server
-    participant Manager as Workspace Manager
-    participant FS as File System
+```typescript
+export interface IKnowledgeSourceProvider<
+  TConfig,
+  TRawPayload,
+  TNormalizedData,
+> {
+  config: {
+    connectorId: string;
+    displayName: string;
+  };
 
-    App->>API: GET /api/workspace/active (Is any workspace open?)
-    API->>Manager: getActiveWorkspace()
-    alt Active Workspace Found (cached route)
-        Manager-->>API: Active workspace info
-        API-->>App: Active Workspace state -> Dashboard
-    else No Active Workspace
-        API->>FS: Read local app data (~/.business-os/config.json)
-        FS-->>API: Recent workspace paths
-        API-->>App: Open/Create Workspace Screen (options list)
-    end
+  // 1. Authenticate connection (OAuth token validation or API key verification)
+  authenticate(credentials: unknown): Promise<TConfig>;
 
-    opt User Selects "Create Workspace"
-        App->>API: POST /api/workspace/create { path: "D:/MyStartup", name: "My Startup" }
-        API->>Manager: createWorkspace(path, name)
-        Manager->>FS: Create folder D:/MyStartup/businessos/
-        Manager->>FS: Write businessos/workspace.yaml
-        Manager->>FS: Initialize businessos/database.sqlite (run Drizzle migrations)
-        Manager->>FS: Create workspace.lock
-        Manager-->>API: Workspace Created successfully
-        API-->>App: Success -> Dashboard View
-    end
+  // 2. Discover available assets/entities (e.g. Facebook pages, email threads)
+  discover(authContext: TConfig): Promise<unknown>;
+
+  // 3. Extract raw payloads from target APIs
+  sync(authContext: TConfig, lastSyncAt?: Date): Promise<TRawPayload>;
+
+  // 4. Map external models into our canonical BusinessEntity and Observation structures
+  normalize(rawPayload: TRawPayload): Promise<TNormalizedData>;
+
+  // 5. Validate the normalized output matches strict schemas (Zod)
+  validate(normalizedData: TNormalizedData): Promise<boolean>;
+
+  // 6. Persist results safely into SQLite via transaction
+  persist(db: any, data: TNormalizedData): Promise<void>;
+}
 ```
 
 ---
 
-## 6. Development Workflow (Sprint 000 Foundation)
+## 5. Brain Context Builder Layer
 
-Sprint 000 deliverables establish this foundation:
-1. **Monorepo setup**: Configure workspace `pnpm`, root `package.json`, and root `tsconfig.json`.
-2. **`packages/shared`**: Initialize Zod schemas and type exports for Workspace configurations.
-3. **`packages/workspace`**: Implement workspace creation, loading, lock creation, and structure validation.
-4. **`apps/server`**: Set up a Fastify server using strict TypeScript, fastify-type-provider-zod, and better-sqlite3 connection to the workspace database.
-5. **`apps/web`**: Set up Next.js app with Tailwind CSS v4, workspace selector landing page, and a basic system health dashboard showing active workspace stats.
+The AI model never reads the database directly. Instead, the `BrainContextBuilder` handles retrieval, ensuring token efficiency and high accuracy:
+
+1.  **Intent Detection:** Analyzes the founder's message to identify key entities, timeframe, and goals.
+2.  **Context Assembly:** Queries SQLite for relevant `business_entities` and chronological `observations`.
+3.  **Prompt Enrichment:** Packages the pruned context and recent `conversation_messages` into the model prompt.
+4.  **Snapshotting:** Saves the working context as a `context_snapshot` to maintain thread memory.
+
+---
+
+## 6. Product Analytics Event Bus
+
+To keep event tracking decoupled:
+
+1.  **Publishers:** Fastify routes and workspace SDKs emit events to a central, local `EventBus` module.
+2.  **Subscribers:** The `AnalyticsEngine` subscribes to the event bus and records execution metrics (e.g. sync performance, chat latency) in the `analytics_events` table.
+
+```typescript
+export interface AnalyticsEvent {
+  sessionId: string;
+  eventName: string;
+  category: "Acquisition" | "Activation" | "Engagement" | "Friction";
+  properties?: Record<string, unknown>;
+}
+
+// Example usage:
+// eventBus.publish("sync_started", { category: "Activation", properties: { provider: "instagram" } });
+```
+
+---
+
+## 7. Definition of Done (Founder Dogfooding Build)
+
+To verify usability:
+
+- [ ] Real OAuth credentials sync dynamically without fallback mocks.
+- [ ] The chatbot uses function-calling / structured tool queries to retrieve data.
+- [ ] The UI contains a functional Work Item dashboard showing pending, active, and completed AI actions.
+- [ ] Conversation history is saved, reloadable, and references correct thread snapshots.
+- [ ] Build completes with zero TypeScript compile errors.

@@ -10,20 +10,21 @@
     "clean": "node -e \"const fs = require('fs'); fs.rmSync('.next', { recursive: true, force: true }); fs.rmSync('dist', { recursive: true, force: true });\""
   },
   "dependencies": {
+    "@nangohq/frontend": "^0.70.9",
+    "clsx": "^2.1.1",
+    "echarts": "^5.5.0",
+    "lucide-react": "^0.378.0",
     "next": "^14.2.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.378.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.3.0",
-    "echarts": "^5.5.0"
+    "tailwind-merge": "^2.3.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0-beta.8",
     "@types/node": "^20.11.30",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "postcss": "^8.4.38",
-    "@tailwindcss/postcss": "^4.0.0-beta.8",
     "tailwindcss": "^4.0.0-beta.8",
     "typescript": "^5.4.5"
   }

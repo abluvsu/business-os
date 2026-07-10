@@ -1,0 +1,221 @@
+name: Documentation & Architecture Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-documentation:
+    name: Validate Documentation & ADRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for git diff in scripts
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate ADR format and compliance
+        run: pnpm validate:adrs
+
+      - name: Check documentation freshness
+        run: pnpm validate:docs
+
+      - name: Verify Company Context compliance
+        run: pnpm validate:context
+
+      - name: TypeScript type checking
+        run: pnpm typecheck
+
+      - name: Build all packages
+        run: pnpm build
+
+  validate-commit-messages:
+    name: Validate Commit Messages (PR)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages in PR
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.js
+
+  check-pr-requirements:
+    name: Check PR Requirements
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for ADR when required
+        id: check-adr
+        run: |
+          # Check if PR touches files that require ADR
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          # Files that trigger ADR requirement
+          ADR_TRIGGERS=(
+            "package.json"
+            "pnpm-lock.yaml"
+            "tsconfig.json"
+            "apps/server/src/index.ts"
+            "packages/workspace/src/"
+            "packages/connector-sdk/"
+            "packages/brain-sdk/"
+            "packages/context-engine/"
+            "docs/architecture/"
+            "templates/"
+            "company/DECISIONS.md"
+          )
+
+          NEEDS_ADR=false
+          for trigger in "${ADR_TRIGGERS[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "^$trigger"; then
+              NEEDS_ADR=true
+              echo "::notice file=$trigger::This change may require an ADR"
+            fi
+          done
+
+          # Check if ADR was added/modified in this PR
+          ADR_CHANGED=$(echo "$CHANGED_FILES" | grep -E '(ADR-\d+|DECISIONS\.md)' || true)
+
+          if [ "$NEEDS_ADR" = true ] && [ -z "$ADR_CHANGED" ]; then
+            echo "::warning::This PR modifies architecture-affecting files but no ADR was added/updated"
+            echo "needs_adr=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_adr=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate PR title follows conventional commits
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if ! echo "$PR_TITLE" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|revert|adr|decision|sprint)(\(.+\))?: .+'; then
+            echo "::error::PR title must follow conventional commits format: 'type(scope): description'"
+            echo "Example: feat(connectors): add Instagram OAuth support"
+            exit 1
+          fi
+
+      - name: Check PR description has required sections
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+
+          # Required sections for non-trivial PRs
+          REQUIRED_SECTIONS=("## Context" "## Changes" "## Testing")
+
+          for section in "${REQUIRED_SECTIONS[@]}"; do
+            if ! echo "$PR_BODY" | grep -q "$section"; then
+              echo "::warning::PR description missing required section: $section"
+            fi
+          done
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review dependencies
+        uses: actions/dependency-review-action@v4
+        with:
+          config-file: ".github/dependency-review-config.yml"
+          fail-on-severity: high
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run npm audit
+        run: |
+          pnpm audit --audit-level=high || true
+
+      - name: Check for secrets in code
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          fail: true
+
+  # Only run full validation on main branch pushes
+  release-validation:
+    name: Full Release Validation
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [validate-documentation]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Full validation suite
+        run: pnpm validate:all
+
+      - name: Verify no TODO in accepted ADRs
+        run: |
+          if grep -r "Status: Accepted" docs/architecture/ company/DECISIONS.md 2>/dev/null | xargs grep -l "_TODO_\|TODO:" 2>/dev/null; then
+            echo "::error::Accepted ADRs contain TODO markers"
+            exit 1
+          fi
+
+      - name: Verify DECISIONS.md is up to date
+        run: |
+          # Check if any ADR files exist but aren't in DECISIONS.md
+          ADR_FILES=$(find . -name "ADR-*.md" -not -path "./node_modules/*" | head -20)
+          if [ -n "$ADR_FILES" ]; then
+            for file in $ADR_FILES; do
+              NUM=$(basename "$file" | sed -E 's/ADR-(\d+).*/\1/')
+              PADDED=$(printf "%03d" "$NUM")
+              if ! grep -q "ADR-$PADDED" company/DECISIONS.md 2>/dev/null; then
+                echo "::warning::$file (ADR-$PADDED) not registered in company/DECISIONS.md"
+              fi
+            done
+          fi

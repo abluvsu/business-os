@@ -1,120 +1,195 @@
 import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import {
+  WorkspaceManager,
+  observations,
+  businessEntities,
+} from "@business-os/workspace";
+import OpenAI from "openai";
 
-const MOCK_CAMPAIGNS = [
-  { id: "c1", name: "Summer Instagram Promo", platform: "Instagram", reach: 12500, clicks: 725, ctr: 5.8, conversions: 82, spend: 350, status: "active" },
-  { id: "c2", name: "Google Search Ads", platform: "Google Ads", reach: 8900, clicks: 374, ctr: 4.2, conversions: 45, spend: 400, status: "active" },
-  { id: "c3", name: "Insta Product Launch", platform: "Instagram", reach: 15000, clicks: 525, ctr: 3.5, conversions: 24, spend: 200, status: "completed" },
-  { id: "c4", name: "Google Display Ads", platform: "Google Ads", reach: 6000, clicks: 90, ctr: 1.5, conversions: 6, spend: 120, status: "paused" },
-  { id: "c5", name: "Insta Brand Story", platform: "Instagram", reach: 4500, clicks: 126, ctr: 2.8, conversions: 8, spend: 80, status: "active" }
-];
+// -----------------------------------------------------------------------------
+// Priority 3: Brain Interface (Multi-Provider LLM)
+// -----------------------------------------------------------------------------
 
-export function registerMarketingRoutes(fastify: FastifyInstance) {
+export function registerMarketingRoutes(
+  fastify: FastifyInstance,
+  manager: WorkspaceManager,
+) {
   const server = fastify.withTypeProvider<ZodTypeProvider>();
 
-  // GET campaigns list
-  server.get("/api/campaigns", {
-    schema: {
-      response: {
-        200: z.array(
-          z.object({
-            id: z.string(),
-            name: z.string(),
-            platform: z.string(),
-            reach: z.number(),
-            clicks: z.number(),
-            ctr: z.number(),
-            conversions: z.number(),
-            spend: z.number(),
-            status: z.string(),
-          })
-        ),
-      },
-    },
-  }, async () => {
-    return MOCK_CAMPAIGNS;
-  });
+  // Helper to create an AI client based on .env config
+  const createAIClient = (prefix: "PRIMARY_AI" | "FALLBACK_AI") => {
+    const key = process.env[`${prefix}_API_KEY`];
+    const baseURL = process.env[`${prefix}_BASE_URL`];
+    const model = process.env[`${prefix}_MODEL`];
 
-  // GET connectors status
-  server.get("/api/connectors/status", {
-    schema: {
-      response: {
-        200: z.object({
-          instagram: z.object({ connected: z.boolean(), lastSync: z.string().nullable() }),
-          gmail: z.object({ connected: z.boolean(), lastSync: z.string().nullable() }),
-          googleAds: z.object({ connected: z.boolean(), lastSync: z.string().nullable() }),
-          website: z.object({ connected: z.boolean(), lastSync: z.string().nullable() }),
-        }),
-      },
-    },
-  }, async () => {
+    if (!key || !model) return null;
+
     return {
-      instagram: { connected: true, lastSync: new Date().toISOString() },
-      gmail: { connected: false, lastSync: null },
-      googleAds: { connected: false, lastSync: null },
-      website: { connected: false, lastSync: null }
+      client: new OpenAI({ apiKey: key, baseURL, timeout: 2000 }),
+      model,
+      provider: process.env[`${prefix}_PROVIDER`] || "unknown",
     };
-  });
+  };
 
-  // POST chat message parsing
-  server.post("/api/chat", {
-    schema: {
-      body: z.object({
-        message: z.string(),
-      }),
-      response: {
-        200: z.object({
-          text: z.string(),
-          chart: z.object({
-            title: z.string(),
-            type: z.string(),
-            categories: z.array(z.string()),
-            series: z.array(
-              z.object({
-                name: z.string(),
-                data: z.array(z.number()),
-              })
-            ),
-          }).nullable(),
-          recommendations: z.array(z.string()),
-        }),
-      },
-    },
-  }, async (request) => {
-    const { message } = request.body;
-    const cleanMsg = message.toLowerCase().trim();
+  const primaryAI = createAIClient("PRIMARY_AI");
+  const fallbackAI = createAIClient("FALLBACK_AI");
 
-    if (cleanMsg.includes("campaign") || cleanMsg.includes("last 5") || cleanMsg.includes("ctr")) {
-      return {
-        text: `Here is the performance analysis of your last 5 marketing campaigns across active social and search ad channels. 
-
-The **Summer Instagram Promo** is currently your best-performing channel, achieving a stellar **5.8% CTR** and delivering **82 conversions** on a modest $350 spend. 
-
-Conversely, the **Google Display Ads** campaigns are heavily underperforming, yielding only a **1.5% CTR** and 6 conversions. Total spend across all channels is **$1,150** with **165 total conversions** generated.`,
-        chart: {
-          title: "Last 5 Campaigns CTR (%)",
-          type: "bar",
-          categories: MOCK_CAMPAIGNS.map(c => c.name),
-          series: [
-            {
-              name: "CTR %",
-              data: MOCK_CAMPAIGNS.map(c => c.ctr)
-            }
-          ]
+  server.post(
+    "/api/chat",
+    {
+      schema: {
+        body: z.object({ message: z.string() }),
+        response: {
+          200: z.object({
+            text: z.string(),
+            chart: z.any().optional(),
+            recommendations: z.array(z.string()).optional(),
+          }),
         },
-        recommendations: [
-          "⭐⭐⭐⭐⭐ Allocate 50% more budget to 'Summer Instagram Promo' as it currently delivers the highest conversion volume and efficiency.",
-          "⚠️ Pause 'Google Display Ads' immediately. The current CTR (1.5%) is below threshold limits and is wasting ad spend.",
-          "💡 Refresh ad copy and visuals on the 'Insta Brand Story' campaign to push it from 2.8% CTR to our 4% benchmark."
-        ]
-      };
-    }
+      },
+    },
+    async (request, reply) => {
+      const db = manager.db;
+      if (!db) return reply.status(500).send({ text: "Database offline." });
 
-    return {
-      text: "Hello! I am your Business OS AI assistant. I have connected to your active Instagram account and synced the campaign logs. Try asking me: **'How are my last 5 campaigns?'** and I will compile a metric analysis report and chart for you.",
-      chart: null,
-      recommendations: []
-    };
-  });
+      try {
+        const entities = await db.select().from(businessEntities);
+        const metrics = await db.select().from(observations);
+
+        const contextSummary = entities
+          .map(
+            (e: { id: string; name: string; status: string; type: string }) => {
+              const entityMetrics = metrics.filter(
+                (m: { entityId: string | null }) => m.entityId === e.id,
+              );
+              const metricsStr = entityMetrics
+                .map(
+                  (m: { observationType: string; value: number }) =>
+                    `${m.observationType}: ${m.value}`,
+                )
+                .join(", ");
+              return `[${e.type}] ${e.name} (${e.status}): ${metricsStr || "no metrics"}`;
+            },
+          )
+          .join("\n");
+
+        const campaigns = entities.filter(
+          (e: { type: string }) =>
+            e.type === "campaign" || e.type === "organic_post",
+        ) as Array<{ id: string; name: string; type: string }>;
+        const chartData = {
+          title: campaigns.some(
+            (c: { type: string }) => c.type === "organic_post",
+          )
+            ? "Organic Post Engagement (Likes)"
+            : "Campaign Performance (Clicks)",
+          xAxis: campaigns.map((c: { name: string }) => c.name),
+          series: campaigns.map(
+            (c: { id: string }) =>
+              metrics.find(
+                (m: { entityId: string | null; observationType: string }) =>
+                  m.entityId === c.id && m.observationType === "clicks",
+              )?.value || 0,
+          ),
+        };
+
+        let aiText = "";
+        let recommendations: string[] = [];
+        let success = false;
+
+        const systemPrompt = `You are BusinessOS, an expert marketing analyst.
+Here is the current performance context from the database:
+${contextSummary}
+Provide a 2-3 sentence analysis of the data focusing on the user's question.
+You MUST output exactly 2 recommendations at the end, each on a new line starting with a dash (e.g. "- Recommendation text"). Do not use any other bullet characters or numbers.`;
+
+        // Try Primary AI first
+        if (primaryAI && !success) {
+          try {
+            const response = await primaryAI.client.chat.completions.create({
+              model: primaryAI.model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: request.body.message },
+              ],
+              temperature: 0.2,
+            });
+
+            const result = response.choices[0].message.content || "";
+            const lines = result.split("\n");
+            recommendations = lines
+              .filter(
+                (l) => l.trim().startsWith("-") || l.trim().startsWith("*"),
+              )
+              .map((l) => l.replace(/^[-*]\s*/, ""));
+            aiText = lines
+              .filter(
+                (l) => !l.trim().startsWith("-") && !l.trim().startsWith("*"),
+              )
+              .join("\n")
+              .trim();
+            success = true;
+          } catch (err) {
+            console.warn(`Primary AI (${primaryAI.provider}) failed:`, err);
+          }
+        }
+
+        // Try Fallback AI if Primary failed
+        if (fallbackAI && !success) {
+          try {
+            console.log(
+              `Falling back to secondary AI (${fallbackAI.provider})...`,
+            );
+            const response = await fallbackAI.client.chat.completions.create({
+              model: fallbackAI.model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: request.body.message },
+              ],
+              temperature: 0.2,
+            });
+
+            const result = response.choices[0].message.content || "";
+            const lines = result.split("\n");
+            recommendations = lines
+              .filter(
+                (l) => l.trim().startsWith("-") || l.trim().startsWith("*"),
+              )
+              .map((l) => l.replace(/^[-*]\s*/, ""));
+            aiText = lines
+              .filter(
+                (l) => !l.trim().startsWith("-") && !l.trim().startsWith("*"),
+              )
+              .join("\n")
+              .trim();
+            success = true;
+          } catch (err) {
+            console.warn(`Fallback AI (${fallbackAI.provider}) failed:`, err);
+          }
+        }
+
+        // Final local heuristic fallback if both APIs fail
+        if (!success) {
+          aiText = `Based on your data, ${campaigns[0]?.name || "your top campaign"} is generating the most clicks relative to spend. (Note: This is a local fallback response because all AI providers are currently unavailable.)`;
+          recommendations = [
+            "Reallocate 15% budget to the best performing campaign.",
+            "Pause underperforming ad sets to improve ROAS.",
+          ];
+        }
+
+        return {
+          text: aiText,
+          chart: chartData,
+          recommendations: recommendations,
+        };
+      } catch (err: unknown) {
+        console.error(err);
+        return reply
+          .status(500)
+          .send({ text: "Internal Server Error analyzing data." });
+      }
+    },
+  );
 }

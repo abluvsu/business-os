@@ -1,0 +1,47 @@
+integrations:
+  meta-instagram:
+    provider: facebook
+    syncs:
+      instagram-posts:
+        description: "Sync organic Instagram Business posts and metrics"
+        runs: every 30m
+        output:
+          BusinessEntity:
+            - id
+            - type
+            - name
+            - status
+            - createdAt
+            - updatedAt
+            - attributes
+          Observation:
+            - id
+            - entityId
+            - date
+            - originalTimezone
+            - observationType
+            - value
+            - currency
+  gmail:
+    provider: google-mail
+    syncs:
+      gmail-threads:
+        description: "Sync recent Gmail threads"
+        runs: every 15m
+        output:
+          BusinessEntity:
+            - id
+            - type
+            - name
+            - status
+            - createdAt
+            - updatedAt
+            - attributes
+          Observation:
+            - id
+            - entityId
+            - date
+            - originalTimezone
+            - observationType
+            - value
+            - currency

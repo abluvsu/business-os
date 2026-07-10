@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, ArrowRight, Terminal } from "lucide-react";
+import { Send, Sparkles, ArrowRight } from "lucide-react";
 import { ChartConfig } from "./visualization-panel";
+import { trackEvent } from "../lib/analytics";
 
 interface Message {
   id: string;
@@ -10,31 +11,44 @@ interface Message {
   text: string;
 }
 
-interface ChatAreaProps {
-  onUpdateVisualization: (chart: ChartConfig | null, recommendations: string[]) => void;
+interface ConversationAreaProps {
+  onUpdateVisualization: (
+    chart: ChartConfig | null,
+    recommendations: string[],
+  ) => void;
 }
 
 const API_BASE = "http://127.0.0.1:4000";
 
-export default function ChatArea({ onUpdateVisualization }: ChatAreaProps) {
+export default function ConversationArea({
+  onUpdateVisualization,
+}: ConversationAreaProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "m0",
       role: "assistant",
-      text: "Hello! I am your local Business OS AI assistant. I have connected to your active Instagram container. Try asking me: **'How are my last 5 campaigns?'** and I will compile a metric analysis report and chart for you.",
+      text: "Hello! I am your local Business OS assistant. I have initialized your active workspace container. Try asking me: **'How are my last 5 campaigns?'** and I will query our SQLite store and generate a metric analysis report and chart for you.",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat to bottom
+  // Auto-scroll conversation to bottom
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  useEffect(() => {
+    trackEvent("Chat Opened", "Engagement");
+  }, []);
+
   const sendMessage = async (textToSend: string) => {
-    if (!textToSend.trim()) return;
+    if (!textToSend.trim() || loading) return;
+
+    trackEvent("Question Asked", "Engagement", {
+      questionLength: textToSend.length,
+    });
 
     const userMessage: Message = {
       id: `u-${Date.now()}`,
@@ -52,13 +66,26 @@ export default function ChatArea({ onUpdateVisualization }: ChatAreaProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: textToSend }),
       });
+
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+
       const data = await res.json();
+      if (!data || typeof data.text !== "string") {
+        throw new Error("Invalid response format from chat API");
+      }
+
+      trackEvent("Insight Generated", "Engagement", { hasChart: !!data.chart });
 
       const assistantMessageId = `a-${Date.now()}`;
       const fullText = data.text;
-      
+
       // Initialize empty assistant message
-      setMessages((prev) => [...prev, { id: assistantMessageId, role: "assistant", text: "" }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantMessageId, role: "assistant", text: "" },
+      ]);
 
       // Simulate streaming/typing effect for a premium feel
       let currentIdx = 0;
@@ -69,8 +96,8 @@ export default function ChatArea({ onUpdateVisualization }: ChatAreaProps) {
             prev.map((msg) =>
               msg.id === assistantMessageId
                 ? { ...msg, text: fullText.slice(0, currentIdx + 1) }
-                : msg
-            )
+                : msg,
+            ),
           );
           currentIdx++;
         } else {
@@ -80,15 +107,15 @@ export default function ChatArea({ onUpdateVisualization }: ChatAreaProps) {
           onUpdateVisualization(data.chart, data.recommendations);
         }
       }, speed);
-
     } catch (err) {
       console.error(err);
+      trackEvent("Chat Error", "Friction", { error: String(err) });
       setMessages((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           role: "assistant",
-          text: "⚠️ Connection to local LLM gateway timed out. Please ensure Fastify server is running on port 4000.",
+          text: "⚠️ Connection to local server gateway timed out. Please ensure Fastify server is running on port 4000.",
         },
       ]);
       setLoading(false);
@@ -102,7 +129,7 @@ export default function ChatArea({ onUpdateVisualization }: ChatAreaProps) {
 
   return (
     <div className="h-full flex flex-col bg-[#070709] border-r border-white/5">
-      {/* Scrollable Chat Feed */}
+      {/* Scrollable Conversation Feed */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((msg) => (
           <div
@@ -130,10 +157,15 @@ export default function ChatArea({ onUpdateVisualization }: ChatAreaProps) {
                   : "bg-[#0b0b0e] border-white/5 text-neutral-300"
               }`}
             >
-              {/* Basic Markdown rendering for bold text in mock answers */}
               <p className="whitespace-pre-line">
                 {msg.text.split("**").map((chunk, idx) =>
-                  idx % 2 === 1 ? <strong key={idx} className="text-white font-semibold">{chunk}</strong> : chunk
+                  idx % 2 === 1 ? (
+                    <strong key={idx} className="text-white font-semibold">
+                      {chunk}
+                    </strong>
+                  ) : (
+                    chunk
+                  ),
                 )}
               </p>
             </div>
@@ -147,9 +179,18 @@ export default function ChatArea({ onUpdateVisualization }: ChatAreaProps) {
               AI
             </div>
             <div className="p-4 rounded-xl border border-white/5 bg-[#0b0b0e] flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce"
+                style={{ animationDelay: "0ms" }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce"
+                style={{ animationDelay: "150ms" }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce"
+                style={{ animationDelay: "300ms" }}
+              />
             </div>
           </div>
         )}

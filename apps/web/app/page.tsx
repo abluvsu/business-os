@@ -1,29 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { 
-  FolderPlus, 
-  FolderOpen, 
-  Settings, 
-  Layers, 
-  FileText, 
-  User, 
-  LogOut, 
-  Activity, 
-  CheckCircle2, 
-  AlertCircle,
-  Clock,
-  Terminal,
-  Inbox,
-  BookOpen,
-  Wifi,
+import {
+  Settings,
+  Activity,
+  CheckCircle2,
   Instagram,
+  Globe,
+  ArrowRight,
+  Database,
+  BarChart3,
+  Loader2,
+  PieChart,
   Mail,
-  Search,
-  Globe
+  TrendingUp,
 } from "lucide-react";
-import ChatArea from "../components/chat-area";
-import VisualizationPanel, { ChartConfig } from "../components/visualization-panel";
+import ConversationArea from "../components/conversation-area";
+import VisualizationPanel, {
+  ChartConfig,
+} from "../components/visualization-panel";
+import { trackEvent } from "../lib/analytics";
+import { ConnectionManager } from "../components/ConnectionManager";
+import { Dashboard } from "../components/Dashboard";
+import { useLiveSync } from "../hooks/useLiveSync";
 
 interface Workspace {
   path: string;
@@ -35,86 +34,99 @@ interface Workspace {
   status: string;
 }
 
-interface RecentWorkspace {
-  name: string;
-  path: string;
-  lastOpened: string;
+interface ConnectorStatuses {
+  instagram?: { state: string; message: string; lastSync: string | null };
+  gmail?: { state: string; message: string; lastSync: string | null };
+  google_ads?: { state: string; message: string; lastSync: string | null };
 }
 
-interface ConnectorStatuses {
-  instagram: { connected: boolean; lastSync: string | null };
-  gmail: { connected: boolean; lastSync: string | null };
-  googleAds: { connected: boolean; lastSync: string | null };
-  website: { connected: boolean; lastSync: string | null };
+interface HealthData {
+  acquisition: { totalSessions: number };
+  activation: { workspacesCreated: number; instasConnected: number };
+  engagement: { totalQuestions: number };
+  friction: { mostAbandoned: string | null; abandonReason: string | null };
+  ttfi: { averageSeconds: number | null };
 }
 
 const API_BASE = "http://127.0.0.1:4000";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
-  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
-  const [serverHealth, setServerHealth] = useState<{ workspace: string; database: string; version: string; uptime: number } | null>(null);
-  const [connectorStatus, setConnectorStatus] = useState<ConnectorStatuses | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
+    null,
+  );
+  const [connectorStatus, setConnectorStatus] =
+    useState<ConnectorStatuses | null>(null);
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
 
-  // ECharts States bubbled up from Chat
+  // ECharts States
   const [activeChart, setActiveChart] = useState<ChartConfig | null>(null);
   const [activeRecs, setActiveRecs] = useState<string[]>([]);
 
-  // Forms
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [createPath, setCreatePath] = useState("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [rightPanelTab, setRightPanelTab] = useState<"database" | "visuals">(
+    "database",
+  );
+
+  // Subscribe to live SSE events from local Fastify server
+  useLiveSync((data) => {
+    console.log("🔄 SSE Update: sync completed!", data);
+    setRefreshTrigger((prev) => prev + 1);
+    checkStatus();
+  }, API_BASE);
+
+  // Connector UI states
+  const [showConnectForm, setShowConnectForm] = useState(false);
+  const [metaTokenInput, setMetaTokenInput] = useState("");
+
+  // Setup UI states
   const [createName, setCreateName] = useState("");
-  const [createOwner, setCreateOwner] = useState("");
-
-  const [showOpenForm, setShowOpenForm] = useState(false);
-  const [openPath, setOpenPath] = useState("");
-
-  // Crash Recovery
-  const [showCrashedModal, setShowCrashedModal] = useState(false);
-  const [pendingPath, setPendingPath] = useState("");
 
   // Navigation state
-  const [activeTab, setActiveTab] = useState<"workspace" | "reports" | "knowledge" | "connectors" | "settings">("workspace");
+  const [activeTab, setActiveTab] = useState<
+    "workspace" | "connectors" | "health"
+  >("workspace");
 
-  // Fetch server status & workspace metadata
+  // Track app open and handle OAuth popup callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const conn = params.get("connected");
+    if (conn === "instagram" || conn === "gmail" || conn === "google-ads") {
+      window.close();
+      return;
+    }
+    trackEvent("Application Opened", "Acquisition");
+  }, []);
+
   const checkStatus = async () => {
     try {
-      // 1. Health check
-      const healthRes = await fetch(`${API_BASE}/health`).catch(() => null);
-      if (healthRes && healthRes.ok) {
-        const healthData = await healthRes.json();
-        setServerHealth(healthData);
-      } else {
-        setServerHealth(null);
-      }
-
-      // 2. Active Workspace
-      const activeRes = await fetch(`${API_BASE}/api/workspace/active`);
-      if (activeRes.ok) {
+      const activeRes = await fetch(`${API_BASE}/api/workspace/active`).catch(
+        () => null,
+      );
+      if (activeRes && activeRes.ok) {
         const activeData = await activeRes.json();
         setActiveWorkspace(activeData.workspace);
+      } else {
+        setActiveWorkspace(null);
       }
 
-      // 3. Recent Workspaces
-      const recentRes = await fetch(`${API_BASE}/api/workspace/recent`);
-      if (recentRes.ok) {
-        const recentData = await recentRes.json();
-        setRecentWorkspaces(recentData);
-      }
-
-      // 4. Connector status
-      const connectorRes = await fetch(`${API_BASE}/api/connectors/status`).catch(() => null);
+      const connectorRes = await fetch(
+        `${API_BASE}/api/connectors/status`,
+      ).catch(() => null);
       if (connectorRes && connectorRes.ok) {
         const connData = await connectorRes.json();
         setConnectorStatus(connData);
       }
-      
-      setErrorMsg(null);
+
+      const healthRes = await fetch(`${API_BASE}/api/analytics/health`).catch(
+        () => null,
+      );
+      if (healthRes && healthRes.ok) {
+        const hData = await healthRes.json();
+        setHealthData(hData);
+      }
     } catch (err: any) {
       console.error("Connection failure:", err);
-      setErrorMsg("Failed to connect to Local Fastify Backend on http://localhost:4000. Is it running?");
     } finally {
       setLoading(false);
     }
@@ -122,109 +134,56 @@ export default function Home() {
 
   useEffect(() => {
     checkStatus();
-    // Poll status periodically (every 5 seconds)
-    const interval = setInterval(checkStatus, 5000);
+    const interval = setInterval(checkStatus, 1500);
     return () => clearInterval(interval);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createPath || !createName || !createOwner) {
-      alert("Please fill in all fields.");
-      return;
-    }
-    setErrorMsg(null);
+    if (!createName) return;
+
+    trackEvent("Workspace Creation Started", "Activation");
+    const dummyPath = `C:/business-os-workspaces/${createName.toLowerCase().replace(/\s+/g, "-")}`;
+
     try {
       const res = await fetch(`${API_BASE}/api/workspace/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: createPath, name: createName, owner: createOwner }),
+        body: JSON.stringify({
+          path: dummyPath,
+          name: createName,
+          owner: "Founder",
+        }),
       });
       const data = await res.json();
       if (data.success) {
+        trackEvent("Workspace Created", "Activation");
         setActiveWorkspace(data.workspace);
-        setShowCreateForm(false);
-        setCreatePath("");
-        setCreateName("");
-        setCreateOwner("");
+        setActiveTab("connectors");
         checkStatus();
-      } else {
-        setErrorMsg(data.error);
       }
     } catch (err) {
-      setErrorMsg("Failed to create workspace. Server error.");
+      trackEvent("Workspace Creation Failed", "Friction");
     }
   };
 
-  const handleOpen = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!openPath) return;
-    setErrorMsg(null);
+  const handleDisconnect = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/workspace/open`, {
+      const res = await fetch(`${API_BASE}/api/connectors/${id}/disconnect`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: openPath }),
       });
-      const data = await res.json();
-      if (data.success) {
-        setActiveWorkspace(data.workspace);
-        setShowOpenForm(false);
-        setOpenPath("");
-        checkStatus();
-      } else {
-        if (data.crashed) {
-          setPendingPath(openPath);
-          setShowCrashedModal(true);
-          setShowOpenForm(false);
-          setOpenPath("");
-        } else {
-          setErrorMsg(data.error);
-        }
-      }
-    } catch (err) {
-      setErrorMsg("Failed to open workspace. Check if locked or invalid path.");
-    }
-  };
-
-  const handleOpenPath = async (pathString: string, force: boolean = false) => {
-    setErrorMsg(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/workspace/open`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: pathString, force }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setActiveWorkspace(data.workspace);
-        checkStatus();
-      } else {
-        if (data.crashed) {
-          setPendingPath(pathString);
-          setShowCrashedModal(true);
-        } else {
-          setErrorMsg(data.error);
-        }
-      }
-    } catch (err) {
-      setErrorMsg("Failed to open workspace path. Directory might have been moved or locked.");
-    }
-  };
-
-  const handleClose = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/workspace/close`, { method: "POST" });
       if (res.ok) {
-        setActiveWorkspace(null);
         checkStatus();
       }
     } catch (err) {
-      setErrorMsg("Failed to close workspace.");
+      console.error(err);
     }
   };
 
-  const handleUpdateVisualization = (chart: ChartConfig | null, recommendations: string[]) => {
+  const handleUpdateVisualization = (
+    chart: ChartConfig | null,
+    recommendations: string[],
+  ) => {
     setActiveChart(chart);
     setActiveRecs(recommendations);
   };
@@ -233,547 +192,331 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center flex-col">
         <Activity className="h-8 w-8 text-neutral-400 animate-pulse mb-3" />
-        <p className="text-neutral-400 text-sm font-medium font-mono">BOOTING BUSINESS OS FOUNDATION...</p>
+        <p className="text-neutral-400 text-sm font-medium font-mono">
+          Initializing BusinessOS
+        </p>
       </div>
     );
   }
 
-  // Dashboard Interface (Workspace is open)
-  if (activeWorkspace) {
+  const isInstagramConnected =
+    connectorStatus?.instagram?.state === "connected" ||
+    connectorStatus?.instagram?.state === "ready";
+  const isInstagramSyncing = connectorStatus?.instagram?.state === "syncing";
+  const instagramMessage =
+    connectorStatus?.instagram?.message || "Ready to connect";
+
+  const isGmailConnected =
+    connectorStatus?.gmail?.state === "connected" ||
+    connectorStatus?.gmail?.state === "ready";
+  const isGmailSyncing = connectorStatus?.gmail?.state === "syncing";
+  const gmailMessage = connectorStatus?.gmail?.message || "Ready to connect";
+
+  const isGoogleAdsConnected =
+    connectorStatus?.google_ads?.state === "connected" ||
+    connectorStatus?.google_ads?.state === "ready";
+  const isGoogleAdsSyncing = connectorStatus?.google_ads?.state === "syncing";
+  const googleAdsMessage =
+    connectorStatus?.google_ads?.message || "Ready to connect";
+
+  const isAnyConnected =
+    isInstagramConnected || isGmailConnected || isGoogleAdsConnected;
+
+  // ---------------------------------------------------------------------------
+  // Empty State: Welcome Screen
+  // ---------------------------------------------------------------------------
+  if (!activeWorkspace) {
     return (
-      <div className="min-h-screen bg-[#070709] flex flex-col font-sans">
-        {/* Header */}
-        <header className="h-16 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
-          <div className="flex items-center gap-3">
-            <span className="font-bold text-lg bg-gradient-to-r from-neutral-200 to-neutral-400 bg-clip-text text-transparent font-mono tracking-tight">
-              BUSINESS_OS //
-            </span>
-            <div className="h-4 w-px bg-white/10" />
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-neutral-300">
-                {activeWorkspace.name}
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                ACTIVE
-              </span>
+      <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center p-6 text-neutral-200">
+        <div className="w-full max-w-md space-y-12">
+          <div className="text-center space-y-4">
+            <div className="h-16 w-16 bg-white/5 border border-white/10 rounded-2xl mx-auto flex items-center justify-center">
+              <Database className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-b from-white to-neutral-400 bg-clip-text text-transparent tracking-tight">
+                BusinessOS
+              </h1>
+              <p className="text-sm text-neutral-400 mt-2">
+                Your private business analyst. Connect your data, ask questions,
+                get insights.
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-xs text-neutral-500 font-mono">Founder Profile</p>
-              <p className="text-sm text-neutral-300 font-medium">{activeWorkspace.owner}</p>
-            </div>
-            <button 
-              onClick={handleClose}
-              className="flex items-center gap-2 text-xs border border-white/10 bg-white/5 hover:bg-red-500/10 hover:border-red-500/30 text-neutral-300 hover:text-red-400 px-3 py-1.5 rounded-md transition-all font-mono"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              UNMOUNT
-            </button>
-          </div>
-        </header>
-
-        <div className="flex-1 flex">
-          {/* Sidebar */}
-          <aside className="w-64 border-r border-white/5 bg-[#08080a] p-4 flex flex-col gap-1.5">
-            <div className="mb-4 px-2">
-              <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-wider font-mono">Navigation</p>
-            </div>
-            <button
-              onClick={() => setActiveTab("workspace")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "workspace"
-                  ? "bg-white/5 border border-white/10 text-white font-semibold"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <Layers className="h-4 w-4" />
-              Workspace
-            </button>
-            <button
-              onClick={() => setActiveTab("reports")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "reports"
-                  ? "bg-white/5 border border-white/10 text-white font-semibold"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              Reports
-            </button>
-            <button
-              onClick={() => setActiveTab("knowledge")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "knowledge"
-                  ? "bg-white/5 border border-white/10 text-white font-semibold"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <BookOpen className="h-4 w-4" />
-              Knowledge
-            </button>
-            <button
-              onClick={() => setActiveTab("connectors")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "connectors"
-                  ? "bg-white/5 border border-white/10 text-white font-semibold"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <FolderOpen className="h-4 w-4" />
-              Connectors
-            </button>
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "settings"
-                  ? "bg-white/5 border border-white/10 text-white font-semibold"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </button>
-
-            <div className="mt-auto border-t border-white/5 pt-4 px-2">
-              <div className="flex items-center justify-between text-[11px] text-neutral-600 font-mono">
-                <span>V1 Foundation</span>
-                <span>Port 4000</span>
-              </div>
-            </div>
-          </aside>
-
-          {/* Main Layout Area */}
-          <div className="flex-1 flex overflow-hidden">
-            {activeTab === "workspace" && (
-              <>
-                {/* 2/3 Chat Area */}
-                <div className="flex-1 flex flex-col min-w-0">
-                  <ChatArea onUpdateVisualization={handleUpdateVisualization} />
-                </div>
-                {/* 1/3 ECharts Panel */}
-                <div className="w-[30rem] bg-[#08080a] overflow-y-auto shrink-0 border-l border-white/5">
-                  <VisualizationPanel chart={activeChart} recommendations={activeRecs} />
-                </div>
-              </>
-            )}
-
-            {activeTab === "connectors" && (
-              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-6">
-                  <div>
-                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Data Connectors</h1>
-                    <p className="text-neutral-500 text-sm mt-1">Configure sources to sync marketing conversations and analytics metrics.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Instagram - Active Mock */}
-                    <div className="border border-emerald-500/20 rounded-xl bg-emerald-500/3 p-5 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm text-white flex items-center gap-2">
-                            <Instagram className="h-4 w-4 text-emerald-400" />
-                            Instagram Connector
-                          </span>
-                          <span className="text-[10px] font-mono text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 rounded flex items-center gap-1">
-                            <Wifi className="h-2.5 w-2.5 animate-pulse" />
-                            CONNECTED
-                          </span>
-                        </div>
-                        <p className="text-xs text-neutral-400 mt-2">
-                          Successfully importing profile statistics, reach metrics, CTR indices, and posts.
-                        </p>
-                        <div className="mt-3 p-2 bg-white/2 rounded border border-white/5 text-[10px] text-neutral-400 font-mono">
-                          Last Synced: {connectorStatus?.instagram.lastSync ? new Date(connectorStatus.instagram.lastSync).toLocaleTimeString() : "N/A"}
-                        </div>
-                      </div>
-                      <button className="mt-4 w-full text-xs border border-white/10 hover:bg-white/5 text-neutral-300 py-2 rounded-lg font-mono transition-colors">
-                        CONFIGURE CONNECTOR
-                      </button>
-                    </div>
-
-                    {/* Gmail - Unconnected */}
-                    <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm text-neutral-200 flex items-center gap-2">
-                            <Mail className="h-4 w-4" />
-                            Gmail Connector
-                          </span>
-                          <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 004</span>
-                        </div>
-                        <p className="text-xs text-neutral-400 mt-2">Pulls marketing and sales conversations, matching client-side query filters.</p>
-                      </div>
-                      <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
-                    </div>
-
-                    {/* Google Ads - Unconnected */}
-                    <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm text-neutral-200 flex items-center gap-2">
-                            <Search className="h-4 w-4" />
-                            Google Ads Connector
-                          </span>
-                          <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 005</span>
-                        </div>
-                        <p className="text-xs text-neutral-400 mt-2">Retrieves keywords, campaigns, daily metric snapshots, and conversions.</p>
-                      </div>
-                      <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
-                    </div>
-
-                    {/* Website - Unconnected */}
-                    <div className="border border-white/5 rounded-xl bg-white/2 p-5 flex flex-col justify-between opacity-60">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm text-neutral-200 flex items-center gap-2">
-                            <Globe className="h-4 w-4" />
-                            Website Scraping
-                          </span>
-                          <span className="text-[10px] font-mono text-neutral-500 border border-white/5 bg-white/3 px-2 py-0.5 rounded">Sprint 006</span>
-                        </div>
-                        <p className="text-xs text-neutral-400 mt-2">Extracts brand architecture, positioning, and products from root domains.</p>
-                      </div>
-                      <button disabled className="mt-4 w-full text-xs bg-neutral-800 border border-neutral-700/50 text-neutral-500 py-2 rounded-lg font-mono">UNAVAILABLE</button>
-                    </div>
-                  </div>
-                </div>
-              </main>
-            )}
-
-            {activeTab === "reports" && (
-              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-6">
-                  <div>
-                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Insight Reports</h1>
-                    <p className="text-neutral-500 text-sm mt-1">Central repository for compiled marketing analysis reports.</p>
-                  </div>
-
-                  <div className="border border-white/5 rounded-xl bg-white/2 p-8 text-center space-y-3">
-                    <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-neutral-500">
-                      <Inbox className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-neutral-300">No Reports Yet</h3>
-                      <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
-                        Once sync reports and marketing analysis documents are created, they will be saved here in Markdown files.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </main>
-            )}
-
-            {activeTab === "knowledge" && (
-              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-6">
-                  <div>
-                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">Business Knowledge</h1>
-                    <p className="text-neutral-500 text-sm mt-1">Local context database, facts, and rules managed by context engines.</p>
-                  </div>
-
-                  <div className="border border-white/5 rounded-xl bg-white/2 p-8 text-center space-y-3">
-                    <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-neutral-500">
-                      <BookOpen className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-neutral-300">No Custom Knowledge Loaded</h3>
-                      <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
-                        You can drop text files or PDF assets in the `businessos/uploads/` directory to expand local AI context.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </main>
-            )}
-
-            {activeTab === "settings" && (
-              <main className="flex-1 bg-[#09090b] p-8 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-6">
-                  <div>
-                    <h1 className="text-2xl font-bold font-mono tracking-tight text-white">System Settings</h1>
-                    <p className="text-neutral-500 text-sm mt-1">Configure active parameters, syncing schedules, and database updates.</p>
-                  </div>
-
-                  <div className="border border-white/5 rounded-xl bg-white/2 p-6 space-y-6">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                      <div>
-                        <h4 className="text-sm font-semibold text-neutral-200">Active Container Path</h4>
-                        <p className="text-xs text-neutral-400 mt-0.5">{activeWorkspace.path}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                      <div>
-                        <h4 className="text-sm font-semibold text-neutral-200">Schema Version</h4>
-                        <p className="text-xs text-neutral-400 mt-0.5">Schema version configured: {activeWorkspace.schemaVersion}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                      <div>
-                        <h4 className="text-sm font-semibold text-neutral-200">System Theme</h4>
-                        <p className="text-xs text-neutral-400 mt-0.5">Adapt screen colors to system settings.</p>
-                      </div>
-                      <select disabled className="bg-neutral-800 border border-white/10 rounded px-2.5 py-1 text-xs text-neutral-300 font-mono">
-                        <option>Dark Mode (Default)</option>
-                        <option>Light Mode</option>
-                        <option>System Default</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-semibold text-neutral-200">Sync Frequency</h4>
-                        <p className="text-xs text-neutral-400 mt-0.5">How often local importer runs.</p>
-                      </div>
-                      <select disabled className="bg-neutral-800 border border-white/10 rounded px-2.5 py-1 text-xs text-neutral-300 font-mono">
-                        <option>Manual Sync Only (V1)</option>
-                        <option>Hourly</option>
-                        <option>Daily</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </main>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Welcome Screen / Workspace Selector (Workspace is closed)
-  return (
-    <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center p-6 text-neutral-200">
-      <div className="w-full max-w-lg space-y-8">
-        {/* Branding header */}
-        <div className="text-center space-y-2">
-          <span className="font-mono text-xs tracking-widest text-neutral-500 uppercase font-semibold">FOUNDATION STAGE // MVP V1</span>
-          <h1 className="text-4xl font-bold bg-gradient-to-b from-white to-neutral-500 bg-clip-text text-transparent font-mono tracking-tight mt-1">
-            BUSINESS OS
-          </h1>
-          <p className="text-sm text-neutral-400 max-w-sm mx-auto">
-            A local-first system to help solo founders understand and optimize marketing.
-          </p>
-        </div>
-
-        {errorMsg && (
-          <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/5 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <h4 className="text-xs font-semibold text-red-300 font-mono">SERVER EXCEPTION</h4>
-              <p className="text-xs text-neutral-400 leading-relaxed">{errorMsg}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Crashed Recovery Modal */}
-        {showCrashedModal && (
-          <div className="p-6 rounded-xl border border-yellow-500/20 bg-yellow-500/5 space-y-4 shadow-xl">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <h3 className="text-xs font-semibold font-mono text-yellow-300">PREVIOUS SESSION CRASHED</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  A lock file was found for this workspace directory, but the process that locked it is no longer running on your system. Would you like to break the lock and mount it?
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  handleOpenPath(pendingPath, true);
-                  setShowCrashedModal(false);
-                }}
-                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-neutral-950 text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
-              >
-                RECOVER & MOUNT
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCrashedModal(false);
-                  setPendingPath("");
-                }}
-                className="flex-1 bg-transparent hover:bg-white/5 border border-white/10 text-neutral-400 hover:text-white text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
-              >
-                CANCEL
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Dashboard Actions */}
-        <div className="grid grid-cols-1 gap-4">
-          {!showCreateForm && !showOpenForm && !showCrashedModal && (
-            <>
-              <button
-                onClick={() => {
-                  setShowCreateForm(true);
-                  setErrorMsg(null);
-                }}
-                className="w-full flex items-center justify-between p-5 rounded-xl border border-white/5 bg-white/2 hover:bg-white/5 transition-all text-left shadow-lg group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-neutral-900 border border-white/10 flex items-center justify-center text-neutral-400 group-hover:text-white transition-colors">
-                    <FolderPlus className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-neutral-200 text-sm group-hover:text-white transition-colors">Create New Workspace</h3>
-                    <p className="text-xs text-neutral-500 mt-1">Mount a brand new local workspace folder.</p>
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowOpenForm(true);
-                  setErrorMsg(null);
-                }}
-                className="w-full flex items-center justify-between p-5 rounded-xl border border-white/5 bg-white/2 hover:bg-white/5 transition-all text-left shadow-lg group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-neutral-900 border border-white/10 flex items-center justify-center text-neutral-400 group-hover:text-white transition-colors">
-                    <FolderOpen className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-neutral-200 text-sm group-hover:text-white transition-colors">Open Existing Workspace</h3>
-                    <p className="text-xs text-neutral-500 mt-1">Mount a directory containing a `businessos/` container.</p>
-                  </div>
-                </div>
-              </button>
-            </>
-          )}
-
-          {/* Form - Create Workspace */}
-          {showCreateForm && (
-            <form onSubmit={handleCreate} className="p-6 rounded-xl border border-white/5 bg-[#0a0a0c] space-y-4 shadow-xl">
-              <h3 className="text-sm font-semibold font-mono text-neutral-200 flex items-center gap-2">
-                <FolderPlus className="h-4 w-4 text-neutral-400" />
-                CREATE CONTAINER
-              </h3>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[10px] font-mono text-neutral-500 uppercase font-semibold">Workspace Directory Path</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. D:/Minds_db_my_folder/shekar_suman_project/BusinessOS_MVP_Foundation/workspace"
-                    value={createPath}
-                    onChange={(e) => setCreatePath(e.target.value)}
-                    className="w-full mt-1 bg-neutral-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-white/30 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-mono text-neutral-500 uppercase font-semibold">Company / Brand Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. My Startup"
-                    value={createName}
-                    onChange={(e) => setCreateName(e.target.value)}
-                    className="w-full mt-1 bg-neutral-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-white/30"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-mono text-neutral-500 uppercase font-semibold">Founder / Owner Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ashutosh"
-                    value={createOwner}
-                    onChange={(e) => setCreateOwner(e.target.value)}
-                    className="w-full mt-1 bg-neutral-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-white/30"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-neutral-200 hover:bg-white text-neutral-950 text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
-                >
-                  MOUNT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateForm(false)}
-                  className="flex-1 bg-transparent hover:bg-white/5 border border-white/10 text-neutral-400 hover:text-white text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Form - Open Workspace */}
-          {showOpenForm && (
-            <form onSubmit={handleOpen} className="p-6 rounded-xl border border-white/5 bg-[#0a0a0c] space-y-4 shadow-xl">
-              <h3 className="text-sm font-semibold font-mono text-neutral-200 flex items-center gap-2">
-                <FolderOpen className="h-4 w-4 text-neutral-400" />
-                MOUNT CONTAINER
-              </h3>
-
+          <div className="bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl">
+            <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="text-[10px] font-mono text-neutral-500 uppercase font-semibold">Workspace Directory Path</label>
+                <label className="block text-xs font-medium text-neutral-400 mb-2">
+                  Workspace Name
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. D:/Minds_db_my_folder/shekar_suman_project/BusinessOS_MVP_Foundation/workspace"
-                  value={openPath}
-                  onChange={(e) => setOpenPath(e.target.value)}
-                  className="w-full mt-1 bg-neutral-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-white/30 font-mono"
+                  placeholder="e.g. Acme Corp"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
                 />
               </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-neutral-200 hover:bg-white text-neutral-950 text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
-                >
-                  OPEN
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowOpenForm(false)}
-                  className="flex-1 bg-transparent hover:bg-white/5 border border-white/10 text-neutral-400 hover:text-white text-xs font-semibold py-2 rounded-lg transition-colors font-mono"
-                >
-                  CANCEL
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all"
+              >
+                Create Workspace
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Active Workspace Dashboard
+  // ---------------------------------------------------------------------------
+  return (
+    <div className="min-h-screen bg-[#070709] flex flex-col font-sans">
+      <header className="h-14 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <Database className="h-5 w-5 text-white" />
+          <span className="font-bold text-sm tracking-tight text-white">
+            BusinessOS
+          </span>
+          <div className="h-4 w-px bg-white/10 mx-2" />
+          <span className="text-sm text-neutral-400">
+            {activeWorkspace.name}
+          </span>
+        </div>
+      </header>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar Navigation */}
+        <aside className="w-56 border-r border-white/5 bg-[#08080a] p-4 flex flex-col gap-2">
+          <button
+            onClick={() => setActiveTab("connectors")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "connectors"
+                ? "bg-white/10 text-white"
+                : "text-neutral-500 hover:text-neutral-300 hover:bg-white/5"
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+            Connectors
+            {!isInstagramConnected && (
+              <span className="ml-auto h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("workspace")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "workspace"
+                ? "bg-white/10 text-white"
+                : "text-neutral-500 hover:text-neutral-300 hover:bg-white/5"
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Analysis
+          </button>
+
+          {/* Dogfooding Analytics Tab */}
+          <button
+            onClick={() => {
+              trackEvent("Health Dashboard Opened", "Engagement");
+              setActiveTab("health");
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all mt-auto border ${
+              activeTab === "health"
+                ? "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                : "bg-transparent border-transparent text-neutral-600 hover:text-purple-400 hover:bg-purple-500/5"
+            }`}
+          >
+            <PieChart className="h-4 w-4" />
+            Product Health
+          </button>
+        </aside>
+
+        {/* Main Content */}
+        <div className="flex-1 flex overflow-hidden bg-[#09090b]">
+          {/* CONNECTORS TAB */}
+          {activeTab === "connectors" && (
+            <main className="flex-1 overflow-y-auto p-12">
+              <div className="max-w-4xl mx-auto space-y-8">
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
+                    Connect your data
+                  </h1>
+                  <p className="text-neutral-400">
+                    Link your accounts to allow the AI to build your business
+                    context.
+                  </p>
+                </div>
+                <ConnectionManager
+                  apiBase={API_BASE}
+                  activeWorkspace={activeWorkspace}
+                  connectorStatus={connectorStatus}
+                  onRefresh={checkStatus}
+                />
+              </div>
+            </main>
+          )}
+
+          {/* ANALYSIS TAB */}
+          {activeTab === "workspace" && (
+            <>
+              <div className="flex-1 flex flex-col min-w-0 relative">
+                {!isAnyConnected ? (
+                  <div className="absolute inset-0 z-10 bg-[#070709]/80 backdrop-blur-sm flex items-center justify-center p-6">
+                    <div className="bg-[#0c0c0e] border border-white/10 p-8 rounded-2xl shadow-2xl max-w-sm text-center">
+                      <Database className="h-10 w-10 text-white/50 mx-auto mb-4" />
+                      <h3 className="text-lg font-bold text-white mb-2">
+                        No data available
+                      </h3>
+                      <p className="text-sm text-neutral-400 mb-6">
+                        Connect your marketing accounts so I can analyze your
+                        performance and provide actionable insights.
+                      </p>
+                      <button
+                        onClick={() => setActiveTab("connectors")}
+                        className="bg-white hover:bg-neutral-200 text-black px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors w-full"
+                      >
+                        Go to Connectors
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <ConversationArea
+                  onUpdateVisualization={handleUpdateVisualization}
+                />
+              </div>
+              <div className="w-[30rem] bg-[#08080a] overflow-y-auto shrink-0 border-l border-white/5 flex flex-col">
+                <div className="flex border-b border-neutral-800 p-2 bg-[#0b0c10]">
+                  <button
+                    onClick={() => setRightPanelTab("database")}
+                    className={`flex-1 text-center py-2 text-xs font-mono font-bold rounded-lg transition-all ${
+                      rightPanelTab === "database"
+                        ? "bg-white/10 text-white"
+                        : "text-neutral-500 hover:text-neutral-300"
+                    }`}
+                  >
+                    Live Database
+                  </button>
+                  <button
+                    onClick={() => setRightPanelTab("visuals")}
+                    className={`flex-1 text-center py-2 text-xs font-mono font-bold rounded-lg transition-all ${
+                      rightPanelTab === "visuals"
+                        ? "bg-white/10 text-white"
+                        : "text-neutral-500 hover:text-neutral-300"
+                    }`}
+                  >
+                    AI Analytics
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                  {rightPanelTab === "database" ? (
+                    <Dashboard
+                      apiBase={API_BASE}
+                      refreshTrigger={refreshTrigger}
+                    />
+                  ) : (
+                    <VisualizationPanel
+                      chart={activeChart}
+                      recommendations={activeRecs}
+                    />
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* PRODUCT HEALTH TAB (Founder Dogfooding) */}
+          {activeTab === "health" && (
+            <main className="flex-1 overflow-y-auto p-12 bg-[#050505]">
+              <div className="max-w-4xl mx-auto space-y-8">
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
+                    BusinessOS Health
+                  </h1>
+                  <p className="text-neutral-400">
+                    Internal Founder Dashboard tracking product usability and
+                    TTFI.
+                  </p>
+                </div>
+
+                {healthData ? (
+                  <div className="space-y-8">
+                    {/* Top Level KPIs */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-6 rounded-2xl bg-[#0c0c0e] border border-white/5">
+                        <p className="text-xs text-neutral-500 font-semibold uppercase tracking-wider mb-2">
+                          Total Sessions
+                        </p>
+                        <p className="text-3xl font-bold text-white">
+                          {healthData.acquisition.totalSessions}
+                        </p>
+                      </div>
+                      <div className="p-6 rounded-2xl bg-[#0c0c0e] border border-white/5">
+                        <p className="text-xs text-neutral-500 font-semibold uppercase tracking-wider mb-2">
+                          Avg Time to First Insight
+                        </p>
+                        <p className="text-3xl font-bold text-white">
+                          {healthData.ttfi.averageSeconds
+                            ? `${healthData.ttfi.averageSeconds.toFixed(1)}s`
+                            : "No data"}
+                        </p>
+                      </div>
+                      <div className="p-6 rounded-2xl bg-[#0c0c0e] border border-white/5">
+                        <p className="text-xs text-neutral-500 font-semibold uppercase tracking-wider mb-2">
+                          Questions Asked
+                        </p>
+                        <p className="text-3xl font-bold text-white">
+                          {healthData.engagement.totalQuestions}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Friction Report */}
+                    <div className="p-8 rounded-2xl bg-red-500/5 border border-red-500/20">
+                      <h3 className="text-lg font-bold text-red-400 mb-2">
+                        Friction Report
+                      </h3>
+                      <p className="text-sm text-neutral-400 mb-4">
+                        Where are founders abandoning the journey?
+                      </p>
+
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                          <span className="text-sm text-white">
+                            Most Abandoned Screen
+                          </span>
+                          <span className="text-sm text-red-300 bg-red-500/10 px-3 py-1 rounded-full">
+                            {healthData.friction.mostAbandoned || "None yet"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-white">
+                            Primary Drop-off Reason
+                          </span>
+                          <span className="text-sm text-neutral-400">
+                            {healthData.friction.abandonReason || "N/A"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 text-neutral-500">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Fetching health data...
+                  </div>
+                )}
+              </div>
+            </main>
           )}
         </div>
-
-        {/* Recent workspaces section */}
-        {recentWorkspaces.length > 0 && !showCreateForm && !showOpenForm && !showCrashedModal && (
-          <div className="space-y-3">
-            <h4 className="text-[10px] font-mono text-neutral-600 font-bold uppercase tracking-wider">RECENT WORKSPACES</h4>
-            <div className="space-y-2">
-              {recentWorkspaces.map((w, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleOpenPath(w.path)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/2 hover:bg-white/5 text-left text-xs transition-all font-mono"
-                >
-                  <div>
-                    <span className="font-semibold text-neutral-200">{w.name}</span>
-                    <span className="text-neutral-500 block text-[10px] mt-0.5 select-all">{w.path}</span>
-                  </div>
-                  <Clock className="h-3.5 w-3.5 text-neutral-500 shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
