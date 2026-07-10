@@ -47,11 +47,11 @@ const CRITICAL_DOCS = [
 ];
 
 const MARKETING_DOCS = [
-  "marketing/01_customer/ICP.md",
-  "marketing/01_customer/CUSTOMER_PROBLEMS.md",
-  "marketing/02_product_marketing/POSITIONING.md",
-  "marketing/02_product_marketing/VALUE_PROPOSITION.md",
-  "marketing/03_copywriting/MESSAGING.md",
+  "marketing/ICP.md",
+  "marketing/CUSTOMER_PROBLEMS.md",
+  "marketing/POSITIONING.md",
+  "marketing/VALUE_PROPOSITION.md",
+  "marketing/MESSAGING.md",
 ];
 
 function checkFileAge(filePath, maxAgeDays) {
