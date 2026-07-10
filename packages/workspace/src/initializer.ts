@@ -6,7 +6,7 @@ import { WorkspaceMetadata } from "./types";
 export async function initializeWorkspace(
   parentPath: string,
   name: string,
-  owner: string
+  owner: string,
 ): Promise<WorkspaceMetadata> {
   const businessosDir = path.join(parentPath, "businessos");
 
@@ -42,7 +42,11 @@ export async function initializeWorkspace(
   };
 
   const yamlContent = YAML.stringify(metadata);
-  fs.writeFileSync(path.join(businessosDir, "workspace.yaml"), yamlContent, "utf8");
+  fs.writeFileSync(
+    path.join(businessosDir, "workspace.yaml"),
+    yamlContent,
+    "utf8",
+  );
 
   // Create settings.json
   const defaultSettings = {
@@ -52,7 +56,7 @@ export async function initializeWorkspace(
   fs.writeFileSync(
     path.join(businessosDir, "settings.json"),
     JSON.stringify(defaultSettings, null, 2),
-    "utf8"
+    "utf8",
   );
 
   // Initialize empty database file

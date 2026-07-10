@@ -66,7 +66,48 @@ export function initializeDatabaseTables(sqlite: any): void {
     }
   };
 
-  // Setup tables using raw SQLite DDL strings for the Canonical Schema
+  // 1. Identity & Tenancy Tables (Must exist first)
+  executeDdl(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      clerk_user_id TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  executeDdl(`
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  executeDdl(`
+    CREATE TABLE IF NOT EXISTS memberships (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      organization_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+      UNIQUE (user_id, organization_id)
+    );
+  `);
+
+  executeDdl(`
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    );
+  `);
+
+  // 2. Data Tables (Scoped to Workspaces)
   executeDdl(`
     CREATE TABLE IF NOT EXISTS knowledge_sources (
       id TEXT PRIMARY KEY,
@@ -75,7 +116,8 @@ export function initializeDatabaseTables(sqlite: any): void {
       status TEXT NOT NULL,
       display_name TEXT NOT NULL,
       auth_context TEXT,
-      last_sync_at TEXT
+      last_sync_at TEXT,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
 
@@ -91,6 +133,7 @@ export function initializeDatabaseTables(sqlite: any): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       attributes TEXT NOT NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
       FOREIGN KEY (source_id) REFERENCES knowledge_sources(id) ON DELETE CASCADE,
       UNIQUE (source_id, external_id)
     );
@@ -107,6 +150,7 @@ export function initializeDatabaseTables(sqlite: any): void {
       observation_type TEXT NOT NULL,
       value REAL NOT NULL,
       currency TEXT,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
       FOREIGN KEY (source_id) REFERENCES knowledge_sources(id) ON DELETE CASCADE,
       FOREIGN KEY (entity_id) REFERENCES business_entities(id) ON DELETE CASCADE,
       UNIQUE (source_id, entity_id, date, observation_type)
@@ -134,7 +178,8 @@ export function initializeDatabaseTables(sqlite: any): void {
       assigned_to TEXT NOT NULL,
       details TEXT NOT NULL,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
 
@@ -144,7 +189,8 @@ export function initializeDatabaseTables(sqlite: any): void {
       workspace_id TEXT NOT NULL,
       title TEXT NOT NULL,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
 

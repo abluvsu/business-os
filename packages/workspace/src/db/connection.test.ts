@@ -2,12 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { createDatabaseConnection, initializeDatabaseTables } from "./connection";
+import {
+  createDatabaseConnection,
+  initializeDatabaseTables,
+} from "./connection";
 import { knowledgeSources } from "./schema";
 
 test("Database connection integration - preserves domain object identity on query", async () => {
   const tempDbPath = path.join(__dirname, "test-temp-database.sqlite");
-  
+
   if (fs.existsSync(tempDbPath)) fs.unlinkSync(tempDbPath);
 
   try {
@@ -31,7 +34,9 @@ test("Database connection integration - preserves domain object identity on quer
     assert.strictEqual(results[0].id, testSource.id);
   } finally {
     if (fs.existsSync(tempDbPath)) {
-      try { fs.unlinkSync(tempDbPath); } catch {}
+      try {
+        fs.unlinkSync(tempDbPath);
+      } catch {}
     }
   }
 });

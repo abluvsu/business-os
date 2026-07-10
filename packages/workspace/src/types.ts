@@ -21,3 +21,10 @@ export interface WorkspaceValidationResult {
   lockStatus?: "clean" | "locked" | "crashed";
   lockPid?: number;
 }
+
+export interface TenantContext {
+  userId: string;
+  organizationId: string;
+  activeWorkspaceId: string;
+  role: "owner" | "admin" | "member" | "read_only";
+}

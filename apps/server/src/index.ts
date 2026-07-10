@@ -11,6 +11,7 @@ import { registerMarketingRoutes } from "./routes/marketing";
 import { registerConnectorRoutes } from "./routes/connectors";
 import { registerAnalyticsRoutes } from "./routes/analytics";
 import { startSyncWorker, syncEventEmitter } from "./sync-worker";
+import contextPlugin from "./plugins/context";
 
 const fastify = Fastify({
   logger: true,
@@ -27,6 +28,9 @@ fastify.register(cors, {
 
 // Initialize workspace manager (automatically loads last open workspace if valid)
 const manager = new WorkspaceManager();
+
+// Register context resolution plugin
+fastify.register(contextPlugin, { manager });
 
 // Register Workspace routes
 registerWorkspaceRoutes(fastify, manager);

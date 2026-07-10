@@ -4,7 +4,9 @@ import * as YAML from "yaml";
 import { WorkspaceYamlSchema } from "@business-os/shared";
 import { WorkspaceValidationResult, WorkspaceMetadata } from "./types";
 
-export function validateWorkspace(parentPath: string): WorkspaceValidationResult {
+export function validateWorkspace(
+  parentPath: string,
+): WorkspaceValidationResult {
   const result: WorkspaceValidationResult = {
     valid: false,
     warnings: [],
@@ -14,7 +16,9 @@ export function validateWorkspace(parentPath: string): WorkspaceValidationResult
 
   const businessosDir = path.join(parentPath, "businessos");
   if (!fs.existsSync(businessosDir)) {
-    result.errors.push(`Directory 'businessos' does not exist in target path: ${parentPath}`);
+    result.errors.push(
+      `Directory 'businessos' does not exist in target path: ${parentPath}`,
+    );
     return result;
   }
 
@@ -42,7 +46,9 @@ export function validateWorkspace(parentPath: string): WorkspaceValidationResult
 
   const validationResult = WorkspaceYamlSchema.safeParse(parsed);
   if (!validationResult.success) {
-    result.errors.push(`workspace.yaml validation failed: ${validationResult.error.message}`);
+    result.errors.push(
+      `workspace.yaml validation failed: ${validationResult.error.message}`,
+    );
     return result;
   }
 
@@ -60,15 +66,21 @@ export function validateWorkspace(parentPath: string): WorkspaceValidationResult
           process.kill(lockPid, 0);
           // Process is alive: locked!
           result.lockStatus = "locked";
-          result.errors.push(`Workspace is locked by another running process (PID: ${lockPid})`);
+          result.errors.push(
+            `Workspace is locked by another running process (PID: ${lockPid})`,
+          );
         } catch (err: any) {
           if (err.code === "EPERM") {
             result.lockStatus = "locked";
-            result.errors.push(`Workspace is locked by another running process (PID: ${lockPid}) (Permission Denied)`);
+            result.errors.push(
+              `Workspace is locked by another running process (PID: ${lockPid}) (Permission Denied)`,
+            );
           } else {
             // Process is dead: crashed!
             result.lockStatus = "crashed";
-            result.warnings.push(`Previous session crashed. Lock file exists but process PID ${lockPid} is not running.`);
+            result.warnings.push(
+              `Previous session crashed. Lock file exists but process PID ${lockPid} is not running.`,
+            );
           }
         }
       }
@@ -88,7 +100,7 @@ export function validateWorkspace(parentPath: string): WorkspaceValidationResult
 
 export function acquireLock(parentPath: string, force: boolean = false): void {
   const lockPath = path.join(parentPath, "businessos", "workspace.lock");
-  
+
   if (fs.existsSync(lockPath)) {
     const lockPidStr = fs.readFileSync(lockPath, "utf8").trim();
     const lockPid = parseInt(lockPidStr, 10);
@@ -100,12 +112,16 @@ export function acquireLock(parentPath: string, force: boolean = false): void {
         process.kill(lockPid, 0);
         // Still running!
         if (!force) {
-          throw new Error(`Workspace is locked by another running process (PID: ${lockPid})`);
+          throw new Error(
+            `Workspace is locked by another running process (PID: ${lockPid})`,
+          );
         }
       } catch (err: any) {
         if (err.code === "EPERM") {
           if (!force) {
-            throw new Error(`Workspace is locked by another running process (PID: ${lockPid}) (Permission Denied)`);
+            throw new Error(
+              `Workspace is locked by another running process (PID: ${lockPid}) (Permission Denied)`,
+            );
           }
         }
         // Dead process, safe to overwrite

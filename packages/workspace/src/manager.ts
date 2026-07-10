@@ -5,7 +5,10 @@ import { DatabaseSync } from "node:sqlite";
 import { initializeWorkspace } from "./initializer";
 import { validateWorkspace, acquireLock, releaseLock } from "./validator";
 import { WorkspaceState, WorkspaceValidationResult } from "./types";
-import { createDatabaseConnection, initializeDatabaseTables } from "./db/connection";
+import {
+  createDatabaseConnection,
+  initializeDatabaseTables,
+} from "./db/connection";
 
 const GLOBAL_CONFIG_DIR = path.join(os.homedir(), ".business-os");
 const GLOBAL_CONFIG_FILE = path.join(GLOBAL_CONFIG_DIR, "config.json");
@@ -65,13 +68,17 @@ export class WorkspaceManager {
     if (!this.activePath) return null;
     const valResult = validateWorkspace(this.activePath);
     if (!valResult.valid || !valResult.metadata) return null;
-    
+
     return {
       path: this.activePath,
       name: valResult.metadata.name,
       version: valResult.metadata.version,
       owner: valResult.metadata.owner,
-      databasePath: path.join(this.activePath, "businessos", valResult.metadata.database),
+      databasePath: path.join(
+        this.activePath,
+        "businessos",
+        valResult.metadata.database,
+      ),
       schemaVersion: valResult.metadata.schemaVersion,
       status: valResult.metadata.status,
     };
@@ -86,9 +93,13 @@ export class WorkspaceManager {
     return validateWorkspace(wsPath);
   }
 
-  public async create(parentPath: string, name: string, owner: string): Promise<WorkspaceState> {
+  public async create(
+    parentPath: string,
+    name: string,
+    owner: string,
+  ): Promise<WorkspaceState> {
     const resolvedPath = path.resolve(parentPath);
-    
+
     // Initialize container directories and files
     await initializeWorkspace(resolvedPath, name, owner);
 
@@ -101,10 +112,16 @@ export class WorkspaceManager {
 
     // Validate the workspace
     const valResult = validateWorkspace(resolvedPath);
-    
+
     // If it's a structural error (not lock related), fail immediately
-    if (!valResult.valid && valResult.lockStatus !== "crashed" && valResult.lockStatus !== "locked") {
-      throw new Error(`Invalid workspace container: ${valResult.errors.join(", ")}`);
+    if (
+      !valResult.valid &&
+      valResult.lockStatus !== "crashed" &&
+      valResult.lockStatus !== "locked"
+    ) {
+      throw new Error(
+        `Invalid workspace container: ${valResult.errors.join(", ")}`,
+      );
     }
 
     // Try to acquire process lock
@@ -117,10 +134,20 @@ export class WorkspaceManager {
     config.activeWorkspacePath = resolvedPath;
 
     // Update or add to recent list
-    const metadata = valResult.metadata || { name: path.basename(resolvedPath), version: 1, schemaVersion: "1.0.0", database: "database.sqlite", status: "active" as const };
-    
+    const metadata = valResult.metadata || {
+      name: path.basename(resolvedPath),
+      version: 1,
+      schemaVersion: "1.0.0",
+      database: "database.sqlite",
+      status: "active" as const,
+    };
+
     // Connect to SQLite DatabaseSync and run migrations DDL
-    const databasePath = path.join(resolvedPath, "businessos", metadata.database || "database.sqlite");
+    const databasePath = path.join(
+      resolvedPath,
+      "businessos",
+      metadata.database || "database.sqlite",
+    );
     try {
       const { sqlite, db } = createDatabaseConnection(databasePath);
       this.dbSync = sqlite;
@@ -133,10 +160,13 @@ export class WorkspaceManager {
       throw new Error(`Database connection failed: ${err.message}`);
     }
 
-    const existingIdx = config.recentWorkspaces.findIndex((w) => path.resolve(w.path) === resolvedPath);
-    
+    const existingIdx = config.recentWorkspaces.findIndex(
+      (w) => path.resolve(w.path) === resolvedPath,
+    );
+
     if (existingIdx !== -1) {
-      config.recentWorkspaces[existingIdx].lastOpened = new Date().toISOString();
+      config.recentWorkspaces[existingIdx].lastOpened =
+        new Date().toISOString();
     } else {
       config.recentWorkspaces.push({
         name: metadata.name,
@@ -146,7 +176,10 @@ export class WorkspaceManager {
     }
 
     // Sort and cap at 10 items
-    config.recentWorkspaces.sort((a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime());
+    config.recentWorkspaces.sort(
+      (a, b) =>
+        new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime(),
+    );
     config.recentWorkspaces = config.recentWorkspaces.slice(0, 10);
 
     saveGlobalConfig(config);
