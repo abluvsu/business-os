@@ -5,7 +5,9 @@ import {
   WorkspaceManager,
   observations,
   businessEntities,
+  companyProfiles,
 } from "@business-os/workspace";
+import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 
 // -----------------------------------------------------------------------------
@@ -55,6 +57,16 @@ export function registerMarketingRoutes(
       if (!db) return reply.status(500).send({ text: "Database offline." });
 
       try {
+        // Fetch company profile for context
+        const tenantContext = (request as any).tenantContext;
+        const workspaceId = tenantContext?.activeWorkspaceId;
+        
+        let companyProfile = null;
+        if (workspaceId) {
+          const profiles = await db.select().from(companyProfiles).where(eq(companyProfiles.workspaceId, workspaceId)).limit(1);
+          companyProfile = profiles[0] || null;
+        }
+
         const entities = await request.repo!.getBusinessEntities();
         const metrics = await request.repo!.getObservations();
 
@@ -74,6 +86,28 @@ export function registerMarketingRoutes(
             },
           )
           .join("\n");
+
+        // Include company profile in context
+        let companyContext = "";
+        if (companyProfile) {
+          const competitors = companyProfile.competitorNames?.length 
+            ? `\nCompetitors: ${companyProfile.competitorNames.join(", ")}`
+            : "";
+          const healthMetrics = companyProfile.healthMetrics
+            ? `\nHealth Metrics: ${JSON.stringify(companyProfile.healthMetrics)}`
+            : "";
+          
+          companyContext = `
+=== COMPANY PROFILE ===
+Company: ${companyProfile.name}
+${companyProfile.website ? `Website: ${companyProfile.website}` : ""}
+${companyProfile.industry ? `Industry: ${companyProfile.industry}` : ""}
+${companyProfile.stage ? `Stage: ${companyProfile.stage}` : ""}
+${companyProfile.businessModel ? `Business Model: ${companyProfile.businessModel}` : ""}
+${companyProfile.description ? `Description: ${companyProfile.description}` : ""}
+${companyProfile.valueProposition ? `Value Proposition: ${companyProfile.valueProposition}` : ""}
+${companyProfile.targetAudience ? `Target Audience: ${companyProfile.targetAudience}` : ""}${competitors}${healthMetrics}`;
+        }
 
         const campaigns = entities.filter(
           (e: { type: string }) =>
@@ -101,7 +135,8 @@ export function registerMarketingRoutes(
 
         const systemPrompt = `You are BusinessOS, an expert marketing analyst.
 Here is the current performance context from the database:
-${contextSummary}
+${contextSummary}${companyContext}
+
 Provide a 2-3 sentence analysis of the data focusing on the user's question.
 You MUST output exactly 2 recommendations at the end, each on a new line starting with a dash (e.g. "- Recommendation text"). Do not use any other bullet characters or numbers.`;
 

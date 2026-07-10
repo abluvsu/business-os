@@ -177,3 +177,29 @@ export const syncMetadata = sqliteTable("sync_metadata", {
   lastSyncAt: text("last_sync_at").notNull(),
   recordsSynced: integer("records_synced").default(0).notNull()
 });
+
+// ==========================================
+// 3. Company Profile & Website Intelligence
+// ==========================================
+
+export const companyProfiles = sqliteTable("company_profiles", {
+  id: text("id").primaryKey(), // UUID
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" })
+    .unique(),
+  name: text("name").notNull(),
+  website: text("website"),
+  industry: text("industry"),
+  stage: text("stage"), // "pre-seed", "seed", "series-a", "growth", "mature"
+  description: text("description"),
+  valueProposition: text("value_proposition"),
+  targetAudience: text("target_audience"),
+  businessModel: text("business_model"), // "SaaS", "ecommerce", "marketplace", "services", "content"
+  competitorNames: text("competitor_names", { mode: "json" }).$type<string[]>(),
+  competitorUrls: text("competitor_urls", { mode: "json" }).$type<string[]>(),
+  healthMetrics: text("health_metrics", { mode: "json" }).$type<Record<string, number>>(),
+  extractedAt: text("extracted_at"), // ISO8601 UTC when website was analyzed
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});

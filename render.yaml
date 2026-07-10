@@ -1,0 +1,55 @@
+services:
+  - type: web
+    name: business-os-server
+    runtime: node
+    plan: starter
+    buildCommand: cd apps/server && npm install && npm run build
+    startCommand: cd apps/server && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PRIMARY_AI_API_KEY
+        sync: false
+      - key: PRIMARY_AI_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: PRIMARY_AI_MODEL
+        value: meta-llama/llama-3.1-8b-instruct:free
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_REDIRECT_URI
+        value: https://business-os-server.onrender.com/api/connectors/instagram/callback
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://business-os-server.onrender.com/api/connectors/gmail/callback
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NANGO_SECRET_KEY
+        sync: false
+    autoDeploy: true
+
+  - type: web
+    name: business-os-web
+    runtime: static
+    buildCommand: cd apps/web && npm install --legacy-peer-deps && npm run build
+    staticPublishPath: apps/web/.next
+    envVars:
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_URL
+        value: https://business-os-server.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

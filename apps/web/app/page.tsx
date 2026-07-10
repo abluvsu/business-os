@@ -25,6 +25,7 @@ import { Dashboard } from "../components/Dashboard";
 import { useLiveSync } from "../hooks/useLiveSync";
 import { useAuth, UserButton, SignIn } from "@clerk/nextjs";
 import { setTokenResolver, authenticatedFetch } from "../lib/api";
+import { CompanyOnboarding } from "../components/CompanyOnboarding";
 
 interface Workspace {
   path: string;
@@ -50,6 +51,20 @@ interface HealthData {
   ttfi: { averageSeconds: number | null };
 }
 
+interface CompanyProfile {
+  name: string;
+  website: string | null;
+  industry: string | null;
+  stage: string | null;
+  description: string | null;
+  valueProposition: string | null;
+  targetAudience: string | null;
+  businessModel: string | null;
+  competitorNames: string[];
+  competitorUrls: string[];
+  healthMetrics: Record<string, number>;
+}
+
 const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
 
@@ -70,6 +85,9 @@ export default function Home() {
   const [connectorStatus, setConnectorStatus] =
     useState<ConnectorStatuses | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
+  const [companyProfileChecked, setCompanyProfileChecked] = useState(false);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
 
   // ECharts States
   const [activeChart, setActiveChart] = useState<ChartConfig | null>(null);
@@ -79,13 +97,6 @@ export default function Home() {
   const [rightPanelTab, setRightPanelTab] = useState<"database" | "visuals">(
     "database",
   );
-
-  // Subscribe to live SSE events from local Fastify server
-  useLiveSync((data) => {
-    console.log("🔄 SSE Update: sync completed!", data);
-    setRefreshTrigger((prev) => prev + 1);
-    checkStatus();
-  }, API_BASE);
 
   // Connector UI states
   const [showConnectForm, setShowConnectForm] = useState(false);
@@ -109,6 +120,31 @@ export default function Home() {
     }
     trackEvent("Application Opened", "Acquisition");
   }, []);
+
+  // Check company profile after login
+  useEffect(() => {
+    const checkCompanyProfile = async () => {
+      if (!hasClerk || !isSignedIn) {
+        setCompanyProfileChecked(true);
+        return;
+      }
+
+      try {
+        const res = await authenticatedFetch(`${API_BASE}/api/company/profile`);
+        const data = await res.json();
+        if (data.success && data.profile) {
+          setCompanyProfile(data.profile);
+          setOnboardingComplete(true);
+        }
+        setCompanyProfileChecked(true);
+      } catch (err) {
+        console.error("Failed to check company profile:", err);
+        setCompanyProfileChecked(true);
+      }
+    };
+
+    checkCompanyProfile();
+  }, [isSignedIn, isLoaded]);
 
   const checkStatus = async () => {
     try {
@@ -150,19 +186,24 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Subscribe to live SSE events from local Fastify server
+  useLiveSync((data) => {
+    console.log("🔄 SSE Update: sync completed!", data);
+    setRefreshTrigger((prev) => prev + 1);
+    checkStatus();
+  }, API_BASE);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createName) return;
 
     trackEvent("Workspace Creation Started", "Activation");
-    const dummyPath = `C:/business-os-workspaces/${createName.toLowerCase().replace(/\s+/g, "-")}`;
 
     try {
       const res = await authenticatedFetch(`${API_BASE}/api/workspace/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          path: dummyPath,
           name: createName,
           owner: "Founder",
         }),
@@ -200,6 +241,12 @@ export default function Home() {
     setActiveRecs(recommendations);
   };
 
+  const handleCompanyOnboardingComplete = (profile: CompanyProfile) => {
+    setCompanyProfile(profile);
+    setOnboardingComplete(true);
+    trackEvent("Company Onboarding Completed", "Activation", { companyName: profile.name });
+  };
+
   // Guard dashboard screens if Clerk is active
   if (hasClerk && isLoaded && !isSignedIn) {
     return (
@@ -234,6 +281,24 @@ export default function Home() {
           Initializing BusinessOS
         </p>
       </div>
+    );
+  }
+
+  // Show company onboarding if no profile exists and user is signed in
+  if (hasClerk && isSignedIn && !companyProfileChecked) {
+    return (
+      <div className="min-h-screen bg-[#070709] flex items-center justify-center p-6">
+        <Activity className="h-8 w-8 text-neutral-400 animate-pulse" />
+      </div>
+    );
+  }
+
+  if (hasClerk && isSignedIn && !onboardingComplete) {
+    return (
+      <CompanyOnboarding
+        onComplete={handleCompanyOnboardingComplete}
+        apiBase={API_BASE}
+      />
     );
   }
 

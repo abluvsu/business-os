@@ -126,13 +126,13 @@ export function registerWorkspaceRoutes(
     },
   );
 
-  // POST create workspace
+// POST create workspace
   server.post(
     "/api/workspace/create",
     {
       schema: {
         body: z.object({
-          path: z.string().min(1),
+          path: z.string().optional(),
           name: z.string().min(1),
           owner: z.string().min(1),
         }),
@@ -158,7 +158,7 @@ export function registerWorkspaceRoutes(
     async (request, reply) => {
       const { path: wsPath, name, owner } = request.body;
       try {
-        const ws = await manager.create(wsPath, name, owner);
+        const ws = await manager.create(name, owner, wsPath);
         return {
           success: true as const,
           workspace: {
@@ -199,10 +199,9 @@ export function registerWorkspaceRoutes(
   );
 
   server.get("/api/dev/entities", async (request, reply) => {
-    const db = manager.db;
-    if (!db) return { success: false, error: "offline" };
-    const entities = await db.select().from(businessEntities);
-    const metrics = await db.select().from(observations);
+    if (!request.repo) return { success: false, error: "offline" };
+    const entities = await request.repo.getBusinessEntities();
+    const metrics = await request.repo.getObservations();
     return { entities, metrics };
   });
 

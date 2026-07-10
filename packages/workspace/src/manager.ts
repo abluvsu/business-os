@@ -13,6 +13,9 @@ import {
 const GLOBAL_CONFIG_DIR = path.join(os.homedir(), ".business-os");
 const GLOBAL_CONFIG_FILE = path.join(GLOBAL_CONFIG_DIR, "config.json");
 
+// Production workspace root (persistent disk on Render)
+const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || path.join(os.homedir(), "business-os-workspaces");
+
 interface GlobalConfig {
   activeWorkspacePath: string | null;
   recentWorkspaces: Array<{
@@ -94,11 +97,12 @@ export class WorkspaceManager {
   }
 
   public async create(
-    parentPath: string,
     name: string,
     owner: string,
+    parentPath?: string,
   ): Promise<WorkspaceState> {
-    const resolvedPath = path.resolve(parentPath);
+    const basePath = parentPath || WORKSPACE_ROOT;
+    const resolvedPath = path.resolve(basePath, name.toLowerCase().replace(/\s+/g, "-"));
 
     // Initialize container directories and files
     await initializeWorkspace(resolvedPath, name, owner);

@@ -10,6 +10,7 @@ import { registerWorkspaceRoutes } from "./routes/workspace";
 import { registerMarketingRoutes } from "./routes/marketing";
 import { registerConnectorRoutes } from "./routes/connectors";
 import { registerAnalyticsRoutes } from "./routes/analytics";
+import { registerCompanyRoutes } from "./routes/company";
 import { startSyncWorker, syncEventEmitter } from "./sync-worker";
 import contextPlugin from "./plugins/context";
 
@@ -37,6 +38,7 @@ registerWorkspaceRoutes(fastify, manager);
 registerMarketingRoutes(fastify, manager);
 registerConnectorRoutes(fastify, manager);
 registerAnalyticsRoutes(fastify, manager);
+registerCompanyRoutes(fastify, manager);
 
 // Start background delta sync polling worker
 startSyncWorker(manager);
