@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Sparkles, ArrowRight } from "lucide-react";
 import { ChartConfig } from "./visualization-panel";
 import { trackEvent } from "../lib/analytics";
+import { authenticatedFetch } from "../lib/api";
 
 interface Message {
   id: string;
@@ -61,7 +62,7 @@ export default function ConversationArea({
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const res = await authenticatedFetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: textToSend }),

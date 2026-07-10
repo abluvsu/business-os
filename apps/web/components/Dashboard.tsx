@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts";
 import { BarChart3, Database, Layers, TrendingUp } from "lucide-react";
+import { authenticatedFetch } from "../lib/api";
 
 interface DashboardProps {
   apiBase: string;
@@ -20,7 +21,7 @@ export function Dashboard({ apiBase, refreshTrigger }: DashboardProps) {
   // Fetch live database values from the local Fastify backend
   const fetchLiveData = async () => {
     try {
-      const res = await fetch(`${apiBase}/api/dev/entities`);
+      const res = await authenticatedFetch(`${apiBase}/api/dev/entities`);
       if (res.ok) {
         const data = await res.json();
         setEntities(data.entities || []);

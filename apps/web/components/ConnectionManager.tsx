@@ -12,6 +12,7 @@ import {
   TrendingUp,
   ShieldCheck,
 } from "lucide-react";
+import { authenticatedFetch } from "../lib/api";
 
 interface ConnectionManagerProps {
   apiBase: string;
@@ -53,7 +54,7 @@ export function ConnectionManager({
       );
 
       // 1. Get Nango Session Token from Fastify backend (which queries Nango Cloud securely using the Secret API Key)
-      const tokenRes = await fetch(`${apiBase}/api/connectors/nango/session`, {
+      const tokenRes = await authenticatedFetch(`${apiBase}/api/connectors/nango/session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -94,7 +95,7 @@ export function ConnectionManager({
             );
 
             try {
-              const connectRes = await fetch(
+              const connectRes = await authenticatedFetch(
                 `${apiBase}/api/connectors/nango/connect`,
                 {
                   method: "POST",

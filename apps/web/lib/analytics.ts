@@ -3,7 +3,9 @@
 // The nervous system of BusinessOS for Founder Dogfooding.
 // -----------------------------------------------------------------------------
 
-const API_BASE = "http://127.0.0.1:4000";
+import { authenticatedFetch } from "./api";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
 
 // Generate a session ID once per page load to group events together
 const SESSION_ID = `sess-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -18,7 +20,7 @@ export const trackEvent = async (
 ) => {
   try {
     // We send this fire-and-forget so it never blocks UI execution
-    fetch(`${API_BASE}/api/analytics/event`, {
+    authenticatedFetch(`${API_BASE}/api/analytics/event`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

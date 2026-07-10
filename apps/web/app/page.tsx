@@ -23,6 +23,8 @@ import { trackEvent } from "../lib/analytics";
 import { ConnectionManager } from "../components/ConnectionManager";
 import { Dashboard } from "../components/Dashboard";
 import { useLiveSync } from "../hooks/useLiveSync";
+import { useAuth, UserButton, SignIn } from "@clerk/nextjs";
+import { setTokenResolver, authenticatedFetch } from "../lib/api";
 
 interface Workspace {
   path: string;
@@ -48,9 +50,19 @@ interface HealthData {
   ttfi: { averageSeconds: number | null };
 }
 
-const API_BASE = "http://127.0.0.1:4000";
+const hasClerk = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
 
 export default function Home() {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+
+  // Bind global api token resolver
+  useEffect(() => {
+    if (hasClerk && getToken) {
+      setTokenResolver(getToken);
+    }
+  }, [getToken]);
+
   const [loading, setLoading] = useState(true);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
     null,
@@ -100,7 +112,7 @@ export default function Home() {
 
   const checkStatus = async () => {
     try {
-      const activeRes = await fetch(`${API_BASE}/api/workspace/active`).catch(
+      const activeRes = await authenticatedFetch(`${API_BASE}/api/workspace/active`).catch(
         () => null,
       );
       if (activeRes && activeRes.ok) {
@@ -110,7 +122,7 @@ export default function Home() {
         setActiveWorkspace(null);
       }
 
-      const connectorRes = await fetch(
+      const connectorRes = await authenticatedFetch(
         `${API_BASE}/api/connectors/status`,
       ).catch(() => null);
       if (connectorRes && connectorRes.ok) {
@@ -118,7 +130,7 @@ export default function Home() {
         setConnectorStatus(connData);
       }
 
-      const healthRes = await fetch(`${API_BASE}/api/analytics/health`).catch(
+      const healthRes = await authenticatedFetch(`${API_BASE}/api/analytics/health`).catch(
         () => null,
       );
       if (healthRes && healthRes.ok) {
@@ -146,7 +158,7 @@ export default function Home() {
     const dummyPath = `C:/business-os-workspaces/${createName.toLowerCase().replace(/\s+/g, "-")}`;
 
     try {
-      const res = await fetch(`${API_BASE}/api/workspace/create`, {
+      const res = await authenticatedFetch(`${API_BASE}/api/workspace/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -169,7 +181,7 @@ export default function Home() {
 
   const handleDisconnect = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/connectors/${id}/disconnect`, {
+      const res = await authenticatedFetch(`${API_BASE}/api/connectors/${id}/disconnect`, {
         method: "POST",
       });
       if (res.ok) {
@@ -188,7 +200,33 @@ export default function Home() {
     setActiveRecs(recommendations);
   };
 
-  if (loading) {
+  // Guard dashboard screens if Clerk is active
+  if (hasClerk && isLoaded && !isSignedIn) {
+    return (
+      <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center p-6 text-neutral-200">
+        <div className="w-full max-w-md space-y-12">
+          <div className="text-center space-y-4">
+            <div className="h-16 w-16 bg-white/5 border border-white/10 rounded-2xl mx-auto flex items-center justify-center">
+              <Database className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-b from-white to-neutral-400 bg-clip-text text-transparent tracking-tight">
+                BusinessOS
+              </h1>
+              <p className="text-sm text-neutral-400 mt-2">
+                Your private multi-tenant business analyst. Connect your integrations, ask questions, get insights.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-center bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl">
+            <SignIn routing="hash" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || (hasClerk && !isLoaded)) {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center flex-col">
         <Activity className="h-8 w-8 text-neutral-400 animate-pulse mb-3" />
@@ -289,6 +327,11 @@ export default function Home() {
             {activeWorkspace.name}
           </span>
         </div>
+        {hasClerk && isSignedIn && (
+          <div className="flex items-center gap-4">
+            <UserButton afterSignOutUrl="/" />
+          </div>
+        )}
       </header>
 
       <div className="flex-1 flex overflow-hidden">
