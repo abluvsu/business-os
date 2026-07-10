@@ -9,7 +9,8 @@ out/
 dist/
 
 # Local database and system folders
-workspace/
+/workspace/
+/workspace_new/
 *.sqlite
 *.lock
 *.log
