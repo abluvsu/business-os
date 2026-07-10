@@ -60,10 +60,14 @@ export function registerMarketingRoutes(
         // Fetch company profile for context
         const tenantContext = (request as any).tenantContext;
         const workspaceId = tenantContext?.activeWorkspaceId;
-        
+
         let companyProfile = null;
         if (workspaceId) {
-          const profiles = await db.select().from(companyProfiles).where(eq(companyProfiles.workspaceId, workspaceId)).limit(1);
+          const profiles = await db
+            .select()
+            .from(companyProfiles)
+            .where(eq(companyProfiles.workspaceId, workspaceId))
+            .limit(1);
           companyProfile = profiles[0] || null;
         }
 
@@ -90,13 +94,13 @@ export function registerMarketingRoutes(
         // Include company profile in context
         let companyContext = "";
         if (companyProfile) {
-          const competitors = companyProfile.competitorNames?.length 
+          const competitors = companyProfile.competitorNames?.length
             ? `\nCompetitors: ${companyProfile.competitorNames.join(", ")}`
             : "";
           const healthMetrics = companyProfile.healthMetrics
             ? `\nHealth Metrics: ${JSON.stringify(companyProfile.healthMetrics)}`
             : "";
-          
+
           companyContext = `
 === COMPANY PROFILE ===
 Company: ${companyProfile.name}

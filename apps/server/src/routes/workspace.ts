@@ -126,7 +126,7 @@ export function registerWorkspaceRoutes(
     },
   );
 
-// POST create workspace
+  // POST create workspace
   server.post(
     "/api/workspace/create",
     {

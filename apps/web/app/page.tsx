@@ -85,7 +85,9 @@ export default function Home() {
   const [connectorStatus, setConnectorStatus] =
     useState<ConnectorStatuses | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
-  const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(
+    null,
+  );
   const [companyProfileChecked, setCompanyProfileChecked] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
 
@@ -148,9 +150,9 @@ export default function Home() {
 
   const checkStatus = async () => {
     try {
-      const activeRes = await authenticatedFetch(`${API_BASE}/api/workspace/active`).catch(
-        () => null,
-      );
+      const activeRes = await authenticatedFetch(
+        `${API_BASE}/api/workspace/active`,
+      ).catch(() => null);
       if (activeRes && activeRes.ok) {
         const activeData = await activeRes.json();
         setActiveWorkspace(activeData.workspace);
@@ -166,9 +168,9 @@ export default function Home() {
         setConnectorStatus(connData);
       }
 
-      const healthRes = await authenticatedFetch(`${API_BASE}/api/analytics/health`).catch(
-        () => null,
-      );
+      const healthRes = await authenticatedFetch(
+        `${API_BASE}/api/analytics/health`,
+      ).catch(() => null);
       if (healthRes && healthRes.ok) {
         const hData = await healthRes.json();
         setHealthData(hData);
@@ -222,9 +224,12 @@ export default function Home() {
 
   const handleDisconnect = async (id: string) => {
     try {
-      const res = await authenticatedFetch(`${API_BASE}/api/connectors/${id}/disconnect`, {
-        method: "POST",
-      });
+      const res = await authenticatedFetch(
+        `${API_BASE}/api/connectors/${id}/disconnect`,
+        {
+          method: "POST",
+        },
+      );
       if (res.ok) {
         checkStatus();
       }
@@ -244,7 +249,9 @@ export default function Home() {
   const handleCompanyOnboardingComplete = (profile: CompanyProfile) => {
     setCompanyProfile(profile);
     setOnboardingComplete(true);
-    trackEvent("Company Onboarding Completed", "Activation", { companyName: profile.name });
+    trackEvent("Company Onboarding Completed", "Activation", {
+      companyName: profile.name,
+    });
   };
 
   // Guard dashboard screens if Clerk is active
@@ -261,7 +268,8 @@ export default function Home() {
                 BusinessOS
               </h1>
               <p className="text-sm text-neutral-400 mt-2">
-                Your private multi-tenant business analyst. Connect your integrations, ask questions, get insights.
+                Your private multi-tenant business analyst. Connect your
+                integrations, ask questions, get insights.
               </p>
             </div>
           </div>

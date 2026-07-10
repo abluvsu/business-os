@@ -1,6 +1,7 @@
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import compress from "@fastify/compress";
 import {
   validatorCompiler,
   serializerCompiler,
@@ -16,15 +17,28 @@ import contextPlugin from "./plugins/context";
 
 const fastify = Fastify({
   logger: true,
+  connectionTimeout: 30000,
+  keepAliveTimeout: 65000,
+  requestTimeout: 60000,
 });
 
 // Setup Zod compilers
 fastify.setValidatorCompiler(validatorCompiler);
 fastify.setSerializerCompiler(serializerCompiler);
 
+// Enable compression (gzip/deflate) for all responses
+fastify.register(compress, {
+  global: true,
+  threshold: 1024,
+  encodings: ["gzip", "deflate"],
+});
+
 // Register CORS for web app communication
 fastify.register(cors, {
-  origin: "*",
+  origin: true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 });
 
 // Initialize workspace manager (automatically loads last open workspace if valid)
@@ -43,8 +57,12 @@ registerCompanyRoutes(fastify, manager);
 // Start background delta sync polling worker
 startSyncWorker(manager);
 
-// Health check
-fastify.get("/health", async () => {
+// Health check - optimized for load balancer probes
+fastify.get("/health", {
+  config: {
+    logLevel: "silent",
+  },
+}, async () => {
   const ws = manager.active();
   return {
     workspace: ws ? "opened" : "closed",
@@ -61,6 +79,7 @@ fastify.get("/api/events", (request, reply) => {
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
     "Access-Control-Allow-Origin": "*",
+    "X-Accel-Buffering": "no", // Disable nginx buffering
   });
 
   const onSyncCompleted = (data: any) => {
@@ -92,7 +111,8 @@ process.on("SIGTERM", shutdown);
 const start = async () => {
   try {
     const port = parseInt(process.env.PORT || "4000", 10);
-    const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+    const host =
+      process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
     await fastify.listen({ port, host });
     console.log(`Server listening on http://${host}:${port}`);
   } catch (err) {

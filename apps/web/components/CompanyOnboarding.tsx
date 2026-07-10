@@ -1,7 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Globe, Sparkles, Loader2, CheckCircle, AlertCircle, ArrowRight, Building2, TrendingUp, Users, Zap, Shield } from "lucide-react";
+import {
+  Globe,
+  Sparkles,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  ArrowRight,
+  Building2,
+  TrendingUp,
+  Users,
+  Zap,
+  Shield,
+} from "lucide-react";
 import { authenticatedFetch } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
 
@@ -24,8 +36,13 @@ interface CompanyOnboardingProps {
   apiBase: string;
 }
 
-export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProps) {
-  const [step, setStep] = useState<"input" | "analyzing" | "review" | "complete">("input");
+export function CompanyOnboarding({
+  onComplete,
+  apiBase,
+}: CompanyOnboardingProps) {
+  const [step, setStep] = useState<
+    "input" | "analyzing" | "review" | "complete"
+  >("input");
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const [intel, setIntel] = useState<CompanyProfile | null>(null);
@@ -49,16 +66,21 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
       };
 
       if (website.trim()) {
-        trackEvent("Website Analysis Started", "Activation", { companyName: name });
-
-        const res = await authenticatedFetch(`${apiBase}/api/company/analyze-website`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ website: website.trim() }),
+        trackEvent("Website Analysis Started", "Activation", {
+          companyName: name,
         });
 
+        const res = await authenticatedFetch(
+          `${apiBase}/api/company/analyze-website`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ website: website.trim() }),
+          },
+        );
+
         const data = await res.json();
-        
+
         if (!res.ok || !data.success) {
           throw new Error(data.error || "Failed to analyze website");
         }
@@ -73,7 +95,7 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
         intelData.competitorUrls = data.intel.competitorUrls || [];
         intelData.healthMetrics = data.intel.healthMetrics || {};
 
-        trackEvent("Website Analysis Completed", "Activation", { 
+        trackEvent("Website Analysis Completed", "Activation", {
           companyName: name,
           industry: data.intel.industry,
         });
@@ -83,7 +105,10 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
       setStep("review");
     } catch (err: any) {
       console.error("Analysis error:", err);
-      setError(err.message || "Failed to analyze website. You can continue without it.");
+      setError(
+        err.message ||
+          "Failed to analyze website. You can continue without it.",
+      );
       setIntel({
         name: name.trim(),
         website: website.trim() || null,
@@ -114,12 +139,14 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
       });
 
       const data = await res.json();
-      
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to save profile");
       }
 
-      trackEvent("Company Profile Saved", "Activation", { companyName: intel.name });
+      trackEvent("Company Profile Saved", "Activation", {
+        companyName: intel.name,
+      });
       onComplete(intel);
     } catch (err: any) {
       setError(err.message || "Failed to save profile");
@@ -145,21 +172,31 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
 
   const getStageColor = (stage: string | null) => {
     switch (stage?.toLowerCase()) {
-      case "pre-seed": return "text-yellow-400 bg-yellow-400/10";
-      case "seed": return "text-green-400 bg-green-400/10";
-      case "growth": return "text-blue-400 bg-blue-400/10";
-      case "scale": return "text-purple-400 bg-purple-400/10";
-      default: return "text-neutral-400 bg-neutral-400/10";
+      case "pre-seed":
+        return "text-yellow-400 bg-yellow-400/10";
+      case "seed":
+        return "text-green-400 bg-green-400/10";
+      case "growth":
+        return "text-blue-400 bg-blue-400/10";
+      case "scale":
+        return "text-purple-400 bg-purple-400/10";
+      default:
+        return "text-neutral-400 bg-neutral-400/10";
     }
   };
 
   const getStageIcon = (stage: string | null) => {
     switch (stage?.toLowerCase()) {
-      case "pre-seed": return <Sparkles className="h-3 w-3" />;
-      case "seed": return <Zap className="h-3 w-3" />;
-      case "growth": return <TrendingUp className="h-3 w-3" />;
-      case "scale": return <Building2 className="h-3 w-3" />;
-      default: return <Building2 className="h-3 w-3" />;
+      case "pre-seed":
+        return <Sparkles className="h-3 w-3" />;
+      case "seed":
+        return <Zap className="h-3 w-3" />;
+      case "growth":
+        return <TrendingUp className="h-3 w-3" />;
+      case "scale":
+        return <Building2 className="h-3 w-3" />;
+      default:
+        return <Building2 className="h-3 w-3" />;
     }
   };
 
@@ -178,7 +215,8 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
               Tell us about your company
             </h1>
             <p className="text-sm text-neutral-400 mt-2">
-              We&apos;ll use this to personalize your BusinessOS experience and provide relevant insights.
+              We&apos;ll use this to personalize your BusinessOS experience and
+              provide relevant insights.
             </p>
           </div>
         </div>
@@ -187,9 +225,13 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
         <div className="flex items-center justify-center gap-2">
           {["input", "analyzing", "review"].map((s, i) => (
             <div key={s} className="flex items-center gap-2">
-              <div className={`h-2.5 w-2.5 rounded-full transition-all ${
-                (step === s || (step === "review" && i < 2)) ? "bg-white" : "bg-white/10"
-              } ${step === "analyzing" && i === 1 ? "animate-pulse" : ""}`} />
+              <div
+                className={`h-2.5 w-2.5 rounded-full transition-all ${
+                  step === s || (step === "review" && i < 2)
+                    ? "bg-white"
+                    : "bg-white/10"
+                } ${step === "analyzing" && i === 1 ? "animate-pulse" : ""}`}
+              />
               {i < 2 && <div className="h-px w-12 bg-white/10" />}
             </div>
           ))}
@@ -227,7 +269,8 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
 
               <div>
                 <label className="block text-xs font-medium text-neutral-400 mb-2">
-                  Company Website <span className="text-neutral-500">(optional)</span>
+                  Company Website{" "}
+                  <span className="text-neutral-500">(optional)</span>
                 </label>
                 <div className="relative">
                   <Globe className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-500" />
@@ -240,7 +283,8 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
                   />
                 </div>
                 <p className="text-xs text-neutral-500 mt-1">
-                  We&apos;ll analyze your site to understand your business, competitors, and market position.
+                  We&apos;ll analyze your site to understand your business,
+                  competitors, and market position.
                 </p>
               </div>
             </div>
@@ -264,11 +308,16 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
               <div className="relative">
                 <div className="h-24 w-24 rounded-full border-4 border-white/10" />
                 <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
-                <div className="absolute inset-4 rounded-full border-4 border-purple-500 border-b-transparent animate-spin" style={{ animationDirection: "reverse" }} />
+                <div
+                  className="absolute inset-4 rounded-full border-4 border-purple-500 border-b-transparent animate-spin"
+                  style={{ animationDirection: "reverse" }}
+                />
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-bold text-white">Analyzing your website...</h3>
+              <h3 className="text-lg font-bold text-white">
+                Analyzing your website...
+              </h3>
               <p className="text-sm text-neutral-400">
                 Extracting business context, competitors, and market position
               </p>
@@ -284,18 +333,29 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
         {/* Step 3: Review */}
         {step === "review" && intel && (
           <div className="bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl space-y-6">
-            <h3 className="text-lg font-bold text-white text-center">Review your company profile</h3>
+            <h3 className="text-lg font-bold text-white text-center">
+              Review your company profile
+            </h3>
 
             {/* Basic Info */}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="bg-black/30 border border-white/5 p-4 rounded-xl">
-                <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">Company Name</label>
+                <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+                  Company Name
+                </label>
                 <p className="text-white font-medium">{intel.name}</p>
               </div>
               {intel.website && (
                 <div className="bg-black/30 border border-white/5 p-4 rounded-xl">
-                  <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">Website</label>
-                  <a href={intel.website} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm font-mono flex items-center gap-1">
+                  <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+                    Website
+                  </label>
+                  <a
+                    href={intel.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 text-sm font-mono flex items-center gap-1"
+                  >
                     <Globe className="h-3 w-3" />
                     {intel.website}
                   </a>
@@ -313,14 +373,20 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
                 <div className="grid gap-3 md:grid-cols-3">
                   {intel.industry && (
                     <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">Industry</label>
+                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+                        Industry
+                      </label>
                       <p className="text-white text-sm">{intel.industry}</p>
                     </div>
                   )}
                   {intel.stage && (
                     <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">Stage</label>
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-mono ${getStageColor(intel.stage)}`}>
+                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+                        Stage
+                      </label>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-mono ${getStageColor(intel.stage)}`}
+                      >
                         {getStageIcon(intel.stage)}
                         {intel.stage}
                       </span>
@@ -328,8 +394,12 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
                   )}
                   {intel.businessModel && (
                     <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">Business Model</label>
-                      <p className="text-white text-sm capitalize">{intel.businessModel.toLowerCase()}</p>
+                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+                        Business Model
+                      </label>
+                      <p className="text-white text-sm capitalize">
+                        {intel.businessModel.toLowerCase()}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -338,14 +408,22 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
                   <div className="grid gap-3 md:grid-cols-2">
                     {intel.valueProposition && (
                       <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">Value Proposition</label>
-                        <p className="text-white text-sm">{intel.valueProposition}</p>
+                        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+                          Value Proposition
+                        </label>
+                        <p className="text-white text-sm">
+                          {intel.valueProposition}
+                        </p>
                       </div>
                     )}
                     {intel.targetAudience && (
                       <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">Target Audience</label>
-                        <p className="text-white text-sm">{intel.targetAudience}</p>
+                        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+                          Target Audience
+                        </label>
+                        <p className="text-white text-sm">
+                          {intel.targetAudience}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -359,33 +437,50 @@ export function CompanyOnboarding({ onComplete, apiBase }: CompanyOnboardingProp
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {intel.competitorNames.slice(0, 5).map((comp, i) => (
-                        <span key={i} className="bg-neutral-800 border border-white/10 text-neutral-300 text-xs px-2 py-1 rounded">
+                        <span
+                          key={i}
+                          className="bg-neutral-800 border border-white/10 text-neutral-300 text-xs px-2 py-1 rounded"
+                        >
                           {comp}
                         </span>
                       ))}
                       {intel.competitorNames.length > 5 && (
-                        <span className="text-neutral-500 text-xs">+{intel.competitorNames.length - 5} more</span>
+                        <span className="text-neutral-500 text-xs">
+                          +{intel.competitorNames.length - 5} more
+                        </span>
                       )}
                     </div>
                   </div>
                 )}
 
-                {intel.healthMetrics && Object.keys(intel.healthMetrics).length > 0 && (
-                  <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                    <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3" />
-                      Health Metrics (Estimated)
-                    </label>
-                    <div className="grid gap-2 md:grid-cols-3">
-                      {Object.entries(intel.healthMetrics).map(([key, value]) => (
-                        <div key={key} className="text-center p-2 bg-black/20 rounded-lg">
-                          <p className="text-2xl font-bold text-white">{typeof value === 'number' ? value.toFixed(0) : value}</p>
-                          <p className="text-xs text-neutral-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
-                        </div>
-                      ))}
+                {intel.healthMetrics &&
+                  Object.keys(intel.healthMetrics).length > 0 && (
+                    <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
+                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" />
+                        Health Metrics (Estimated)
+                      </label>
+                      <div className="grid gap-2 md:grid-cols-3">
+                        {Object.entries(intel.healthMetrics).map(
+                          ([key, value]) => (
+                            <div
+                              key={key}
+                              className="text-center p-2 bg-black/20 rounded-lg"
+                            >
+                              <p className="text-2xl font-bold text-white">
+                                {typeof value === "number"
+                                  ? value.toFixed(0)
+                                  : value}
+                              </p>
+                              <p className="text-xs text-neutral-500 capitalize">
+                                {key.replace(/([A-Z])/g, " $1").trim()}
+                              </p>
+                            </div>
+                          ),
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             )}
 

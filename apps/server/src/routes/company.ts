@@ -21,7 +21,8 @@ interface ExtractedCompanyIntel {
 
 const createAIClient = () => {
   const key = process.env.PRIMARY_AI_API_KEY || process.env.OPENAI_API_KEY;
-  const baseURL = process.env.PRIMARY_AI_BASE_URL || "https://api.openai.com/v1";
+  const baseURL =
+    process.env.PRIMARY_AI_BASE_URL || "https://api.openai.com/v1";
   const model = process.env.PRIMARY_AI_MODEL || "gpt-4o-mini";
 
   if (!key) return null;
@@ -36,42 +37,49 @@ async function fetchWebsiteContent(url: string): Promise<string> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
+
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; BusinessOS/1.0; +https://business-os.ai/bot)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        "User-Agent":
+          "Mozilla/5.0 (compatible; BusinessOS/1.0; +https://business-os.ai/bot)",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     const html = await response.text();
-    
+
     // Extract text content from HTML (basic extraction)
     const textContent = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
       .trim()
       .slice(0, 15000); // Limit to ~15k chars for token efficiency
-    
+
     return textContent;
   } catch (error) {
     console.error(`Failed to fetch website ${url}:`, error);
-    throw new Error(`Could not fetch website: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Could not fetch website: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 }
 
-async function extractCompanyIntelligence(websiteContent: string, websiteUrl: string): Promise<ExtractedCompanyIntel> {
+async function extractCompanyIntelligence(
+  websiteContent: string,
+  websiteUrl: string,
+): Promise<ExtractedCompanyIntel> {
   const ai = createAIClient();
-  
+
   const systemPrompt = `You are a business intelligence analyst. Analyze the website content and extract structured company intelligence. Return ONLY valid JSON matching the exact schema below. No markdown, no explanations.
 
 {
@@ -99,7 +107,10 @@ async function extractCompanyIntelligence(websiteContent: string, websiteUrl: st
         model: ai.model,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Website URL: ${websiteUrl}\n\nWebsite Content:\n${websiteContent}` },
+          {
+            role: "user",
+            content: `Website URL: ${websiteUrl}\n\nWebsite Content:\n${websiteContent}`,
+          },
         ],
         temperature: 0.1,
         response_format: { type: "json_object" },
@@ -116,46 +127,119 @@ async function extractCompanyIntelligence(websiteContent: string, websiteUrl: st
   return heuristicExtraction(websiteContent, websiteUrl);
 }
 
-function heuristicExtraction(content: string, url: string): ExtractedCompanyIntel {
+function heuristicExtraction(
+  content: string,
+  url: string,
+): ExtractedCompanyIntel {
   const lowerContent = content.toLowerCase();
-  
+
   // Extract company name from title or h1 patterns
   let name = "Unknown Company";
   const titleMatch = content.match(/<title[^>]*>([^<]+)<\/title>/i);
   if (titleMatch) {
-    name = titleMatch[1].split('|')[0].split('-')[0].trim();
+    name = titleMatch[1].split("|")[0].split("-")[0].trim();
   }
-  
+
   // Detect industry
   let industry = "Technology";
-  if (lowerContent.includes('saas') || lowerContent.includes('software as a service')) industry = "SaaS";
-  else if (lowerContent.includes('fintech') || lowerContent.includes('financial technology')) industry = "FinTech";
-  else if (lowerContent.includes('healthtech') || lowerContent.includes('health tech') || lowerContent.includes('medical')) industry = "HealthTech";
-  else if (lowerContent.includes('e-commerce') || lowerContent.includes('ecommerce') || lowerContent.includes('shopify')) industry = "E-commerce";
-  else if (lowerContent.includes('ai') || lowerContent.includes('artificial intelligence') || lowerContent.includes('machine learning')) industry = "AI/ML";
-  else if (lowerContent.includes('marketing') || lowerContent.includes('seo') || lowerContent.includes('analytics')) industry = "MarTech";
-  else if (lowerContent.includes('developer') || lowerContent.includes('api') || lowerContent.includes('devtools')) industry = "Developer Tools";
-  
+  if (
+    lowerContent.includes("saas") ||
+    lowerContent.includes("software as a service")
+  )
+    industry = "SaaS";
+  else if (
+    lowerContent.includes("fintech") ||
+    lowerContent.includes("financial technology")
+  )
+    industry = "FinTech";
+  else if (
+    lowerContent.includes("healthtech") ||
+    lowerContent.includes("health tech") ||
+    lowerContent.includes("medical")
+  )
+    industry = "HealthTech";
+  else if (
+    lowerContent.includes("e-commerce") ||
+    lowerContent.includes("ecommerce") ||
+    lowerContent.includes("shopify")
+  )
+    industry = "E-commerce";
+  else if (
+    lowerContent.includes("ai") ||
+    lowerContent.includes("artificial intelligence") ||
+    lowerContent.includes("machine learning")
+  )
+    industry = "AI/ML";
+  else if (
+    lowerContent.includes("marketing") ||
+    lowerContent.includes("seo") ||
+    lowerContent.includes("analytics")
+  )
+    industry = "MarTech";
+  else if (
+    lowerContent.includes("developer") ||
+    lowerContent.includes("api") ||
+    lowerContent.includes("devtools")
+  )
+    industry = "Developer Tools";
+
   // Detect stage
   let stage = "seed";
-  if (lowerContent.includes('series a') || lowerContent.includes('series b') || lowerContent.includes('series c')) stage = "growth";
-  else if (lowerContent.includes('pre-seed') || lowerContent.includes('pre seed') || lowerContent.includes('just started')) stage = "pre-seed";
-  else if (lowerContent.includes('enterprise') && lowerContent.includes('customers')) stage = "growth";
-  
+  if (
+    lowerContent.includes("series a") ||
+    lowerContent.includes("series b") ||
+    lowerContent.includes("series c")
+  )
+    stage = "growth";
+  else if (
+    lowerContent.includes("pre-seed") ||
+    lowerContent.includes("pre seed") ||
+    lowerContent.includes("just started")
+  )
+    stage = "pre-seed";
+  else if (
+    lowerContent.includes("enterprise") &&
+    lowerContent.includes("customers")
+  )
+    stage = "growth";
+
   // Detect business model
   let businessModel = "SaaS";
-  if (lowerContent.includes('marketplace') || lowerContent.includes('platform connecting')) businessModel = "Marketplace";
-  else if (lowerContent.includes('e-commerce') || lowerContent.includes('shopify') || lowerContent.includes('buy now')) businessModel = "E-commerce";
-  else if (lowerContent.includes('agency') || lowerContent.includes('consulting') || lowerContent.includes('services')) businessModel = "Services";
-  else if (lowerContent.includes('freemium') || lowerContent.includes('free plan')) businessModel = "Freemium";
-  else if (lowerContent.includes('enterprise') && lowerContent.includes('contact sales')) businessModel = "Enterprise";
+  if (
+    lowerContent.includes("marketplace") ||
+    lowerContent.includes("platform connecting")
+  )
+    businessModel = "Marketplace";
+  else if (
+    lowerContent.includes("e-commerce") ||
+    lowerContent.includes("shopify") ||
+    lowerContent.includes("buy now")
+  )
+    businessModel = "E-commerce";
+  else if (
+    lowerContent.includes("agency") ||
+    lowerContent.includes("consulting") ||
+    lowerContent.includes("services")
+  )
+    businessModel = "Services";
+  else if (
+    lowerContent.includes("freemium") ||
+    lowerContent.includes("free plan")
+  )
+    businessModel = "Freemium";
+  else if (
+    lowerContent.includes("enterprise") &&
+    lowerContent.includes("contact sales")
+  )
+    businessModel = "Enterprise";
 
   return {
     name,
     industry,
     stage,
     description: `${name} operates in the ${industry} space.`,
-    valueProposition: "Helping businesses achieve their goals through innovative solutions.",
+    valueProposition:
+      "Helping businesses achieve their goals through innovative solutions.",
     targetAudience: "Businesses and professionals seeking efficient solutions.",
     businessModel,
     competitorNames: [],
@@ -172,7 +256,7 @@ function heuristicExtraction(content: string, url: string): ExtractedCompanyInte
 
 export function registerCompanyRoutes(
   fastify: FastifyInstance,
-  manager: WorkspaceManager
+  manager: WorkspaceManager,
 ) {
   const server = fastify.withTypeProvider<ZodTypeProvider>();
 
@@ -207,38 +291,42 @@ export function registerCompanyRoutes(
     async (request, reply) => {
       const db = manager.db;
       if (!db) {
-        return reply.status(503).send({ success: false, error: "Database offline" });
+        return reply
+          .status(503)
+          .send({ success: false, error: "Database offline" });
       }
 
       const { website } = request.body;
       const workspace = manager.active();
       if (!workspace) {
-        return reply.status(400).send({ success: false, error: "No active workspace" });
+        return reply
+          .status(400)
+          .send({ success: false, error: "No active workspace" });
       }
 
       try {
         // Fetch website content
         const websiteContent = await fetchWebsiteContent(website);
-        
+
         if (!websiteContent || websiteContent.length < 100) {
-          return reply.status(400).send({ 
-            success: false, 
-            error: "Could not extract meaningful content from website" 
+          return reply.status(400).send({
+            success: false,
+            error: "Could not extract meaningful content from website",
           });
         }
 
         // Extract intelligence using AI
         const intel = await extractCompanyIntelligence(websiteContent, website);
-        
+
         return { success: true, intel };
       } catch (error: any) {
         console.error("Website analysis error:", error);
-        return reply.status(400).send({ 
-          success: false, 
-          error: error.message || "Failed to analyze website" 
+        return reply.status(400).send({
+          success: false,
+          error: error.message || "Failed to analyze website",
         });
       }
-    }
+    },
   );
 
   // POST /api/company/profile - Save company profile to workspace
@@ -268,19 +356,25 @@ export function registerCompanyRoutes(
     async (request, reply) => {
       const db = manager.db;
       if (!db) {
-        return reply.status(503).send({ success: false, error: "Database offline" });
+        return reply
+          .status(503)
+          .send({ success: false, error: "Database offline" });
       }
 
       const workspace = manager.active();
       if (!workspace) {
-        return reply.status(400).send({ success: false, error: "No active workspace" });
+        return reply
+          .status(400)
+          .send({ success: false, error: "No active workspace" });
       }
 
       const tenantContext = (request as any).tenantContext;
       const workspaceId = tenantContext?.activeWorkspaceId;
-      
+
       if (!workspaceId) {
-        return reply.status(400).send({ success: false, error: "Workspace context not found" });
+        return reply
+          .status(400)
+          .send({ success: false, error: "Workspace context not found" });
       }
 
       const now = new Date().toISOString();
@@ -305,7 +399,8 @@ export function registerCompanyRoutes(
 
       try {
         // Upsert company profile
-        await db.insert(companyProfiles)
+        await db
+          .insert(companyProfiles)
           .values(profileData)
           .onConflictDoUpdate({
             target: companyProfiles.workspaceId,
@@ -320,7 +415,7 @@ export function registerCompanyRoutes(
         console.error("Save company profile error:", error);
         return reply.status(400).send({ success: false, error: error.message });
       }
-    }
+    },
   );
 
   // GET /api/company/profile - Get company profile for active workspace
@@ -344,18 +439,22 @@ export function registerCompanyRoutes(
 
       const tenantContext = (request as any).tenantContext;
       const workspaceId = tenantContext?.activeWorkspaceId;
-      
+
       if (!workspaceId) {
         return { success: false, profile: null };
       }
 
       try {
-        const profiles = await db.select().from(companyProfiles).where(eq(companyProfiles.workspaceId, workspaceId)).limit(1);
+        const profiles = await db
+          .select()
+          .from(companyProfiles)
+          .where(eq(companyProfiles.workspaceId, workspaceId))
+          .limit(1);
         return { success: true, profile: profiles[0] || null };
       } catch (error) {
         console.error("Get company profile error:", error);
         return { success: false, profile: null };
       }
-    }
+    },
   );
 }
