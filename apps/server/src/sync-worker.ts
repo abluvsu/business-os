@@ -83,8 +83,15 @@ async function pollSyncs(manager: WorkspaceManager) {
               `💾 [SyncWorker] Found ${records.length} new records. Batch-persisting to SQLite...`,
             );
 
+            // Attach workspace and source scoping to incoming records
+            const scopedRecords = records.map((r) => ({
+              ...r,
+              sourceId: source.id,
+              workspaceId: source.workspaceId,
+            }));
+
             // 4. Atomic transaction batch-insert
-            await provider.persist(db, records);
+            await provider.persist(db, scopedRecords);
 
             // 5. Fire completion event for client hot-reloading
             syncEventEmitter.emit("sync:completed", {

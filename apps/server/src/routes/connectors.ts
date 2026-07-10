@@ -163,13 +163,11 @@ export function registerConnectorRoutes(
             };
           }
 
-          let dbSources = await db
-            .select()
-            .from(knowledgeSources)
-            .where(eq(knowledgeSources.connectorId, connectorId));
+          let dbSources = await request.repo!.getKnowledgeSources();
+          dbSources = dbSources.filter((s: any) => s.connectorId === connectorId);
 
           if (dbSources.length === 0 && nangoProviderKey) {
-            const allSources = await db.select().from(knowledgeSources);
+            const allSources = await request.repo!.getKnowledgeSources();
             dbSources = allSources.filter((s: any) => {
               const auth = s.authContext as any;
               return auth && auth.providerConfigKey === nangoProviderKey;
@@ -247,14 +245,11 @@ export function registerConnectorRoutes(
       if (!db) throw new Error("DB offline");
       const connectorId = "instagram_graph_v1";
 
-      const existing = await db
-        .select()
-        .from(knowledgeSources)
-        .where(eq(knowledgeSources.connectorId, connectorId));
+      const allSources = await request.repo!.getKnowledgeSources();
+      const existing = allSources.filter((s: { connectorId: string; id: string }) => s.connectorId === connectorId);
       if (existing.length === 0) {
-        await db.insert(knowledgeSources).values({
+        await request.repo!.insertKnowledgeSource({
           id: `ds-${connectorId}-${Date.now()}`,
-          workspaceId: "ws-active",
           connectorId: connectorId,
           status: "connected",
           displayName: "Instagram Ads Account",
@@ -262,10 +257,10 @@ export function registerConnectorRoutes(
           lastSyncAt: null,
         });
       } else {
-        await db
-          .update(knowledgeSources)
-          .set({ status: "connected", authContext: { token: accessToken } })
-          .where(eq(knowledgeSources.connectorId, connectorId));
+        await request.repo!.updateKnowledgeSource(existing[0].id, {
+          status: "connected",
+          authContext: { token: accessToken }
+        });
       }
 
       // Start background sync automatically
@@ -338,14 +333,11 @@ export function registerConnectorRoutes(
       const { tokens } = await oauth2Client.getToken(query.code);
       if (!db) throw new Error("DB offline");
 
-      const existing = await db
-        .select()
-        .from(knowledgeSources)
-        .where(eq(knowledgeSources.connectorId, connectorId));
+      const allSources = await request.repo!.getKnowledgeSources();
+      const existing = allSources.filter((s: { connectorId: string; id: string }) => s.connectorId === connectorId);
       if (existing.length === 0) {
-        await db.insert(knowledgeSources).values({
+        await request.repo!.insertKnowledgeSource({
           id: `ds-${connectorId}-${Date.now()}`,
-          workspaceId: "ws-active",
           connectorId: connectorId,
           status: "connected",
           displayName: displayName,
@@ -353,10 +345,10 @@ export function registerConnectorRoutes(
           lastSyncAt: null,
         });
       } else {
-        await db
-          .update(knowledgeSources)
-          .set({ status: "connected", authContext: tokens })
-          .where(eq(knowledgeSources.connectorId, connectorId));
+        await request.repo!.updateKnowledgeSource(existing[0].id, {
+          status: "connected",
+          authContext: tokens
+        });
       }
 
       // Start background sync
@@ -407,15 +399,12 @@ export function registerConnectorRoutes(
           : "Gmail Account";
 
       try {
-        const existing = await db
-          .select()
-          .from(knowledgeSources)
-          .where(eq(knowledgeSources.connectorId, connectorId));
+        const allSources = await request.repo!.getKnowledgeSources();
+        const existing = allSources.filter((s: { connectorId: string; id: string }) => s.connectorId === connectorId);
 
         if (existing.length === 0) {
-          await db.insert(knowledgeSources).values({
+          await request.repo!.insertKnowledgeSource({
             id: `ds-${connectorId}-${Date.now()}`,
-            workspaceId: "ws-active",
             connectorId: connectorId,
             status: "connected",
             displayName: displayName,
@@ -423,13 +412,10 @@ export function registerConnectorRoutes(
             lastSyncAt: null,
           });
         } else {
-          await db
-            .update(knowledgeSources)
-            .set({
-              status: "connected",
-              authContext: { token: request.body.accessToken },
-            })
-            .where(eq(knowledgeSources.connectorId, connectorId));
+          await request.repo!.updateKnowledgeSource(existing[0].id, {
+            status: "connected",
+            authContext: { token: request.body.accessToken }
+          });
         }
         return { success: true };
       } catch (err: unknown) {
@@ -526,10 +512,7 @@ export function registerConnectorRoutes(
         "key_test_549320ab-c32b-456b-a25e-e48d390a7732";
 
       try {
-        const existing = await db
-          .select()
-          .from(knowledgeSources)
-          .where(eq(knowledgeSources.id, connectionId));
+        const existing = await request.repo!.getKnowledgeSource(connectionId);
 
         const authContext = {
           apiKey,
@@ -538,10 +521,9 @@ export function registerConnectorRoutes(
           baseUrl: baseUrl || "https://api.nango.dev",
         };
 
-        if (existing.length === 0) {
-          await db.insert(knowledgeSources).values({
+        if (!existing) {
+          await request.repo!.insertKnowledgeSource({
             id: connectionId,
-            workspaceId: "ws-active",
             connectorId: "nango_delta_sync",
             status: "connected",
             displayName: displayName,
@@ -549,10 +531,10 @@ export function registerConnectorRoutes(
             lastSyncAt: null,
           });
         } else {
-          await db
-            .update(knowledgeSources)
-            .set({ status: "connected", authContext: authContext })
-            .where(eq(knowledgeSources.id, connectionId));
+          await request.repo!.updateKnowledgeSource(connectionId, {
+            status: "connected",
+            authContext: authContext
+          });
         }
         return { success: true };
       } catch (err: any) {

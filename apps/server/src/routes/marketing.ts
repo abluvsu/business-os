@@ -55,8 +55,8 @@ export function registerMarketingRoutes(
       if (!db) return reply.status(500).send({ text: "Database offline." });
 
       try {
-        const entities = await db.select().from(businessEntities);
-        const metrics = await db.select().from(observations);
+        const entities = await request.repo!.getBusinessEntities();
+        const metrics = await request.repo!.getObservations();
 
         const contextSummary = entities
           .map(
