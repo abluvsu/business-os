@@ -85,9 +85,10 @@ process.on("SIGTERM", shutdown);
 
 const start = async () => {
   try {
-    // Listen locally only
-    await fastify.listen({ port: 4000, host: "127.0.0.1" });
-    console.log("Server listening on http://127.0.0.1:4000");
+    const port = parseInt(process.env.PORT || "4000", 10);
+    const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+    await fastify.listen({ port, host });
+    console.log(`Server listening on http://${host}:${port}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
