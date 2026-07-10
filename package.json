@@ -5,7 +5,7 @@
   "description": "Business OS MVP Foundation Monorepo",
   "scripts": {
     "dev": "pnpm --parallel -r dev",
-    "build": "pnpm -r build",
+    "build": "pnpm --filter @business-os/shared build && pnpm --filter @business-os/workspace build && pnpm --filter @business-os/connector-sdk build && pnpm --filter @business-os/brain-sdk build && pnpm --filter @business-os/context-engine build && pnpm --filter @business-os/sdk build && pnpm --filter @business-os/ui build && pnpm --filter @business-os/visualization build && pnpm --filter business-os-server build && pnpm --filter business-os-web build",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean",
     "prepare": "husky",

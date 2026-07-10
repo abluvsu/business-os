@@ -2,7 +2,16 @@
 
 import React, { useState } from "react";
 import Nango from "@nangohq/frontend";
-import { Link, CheckCircle, AlertTriangle, RefreshCw, Instagram, Mail, TrendingUp, ShieldCheck } from "lucide-react";
+import {
+  Link,
+  CheckCircle,
+  AlertTriangle,
+  RefreshCw,
+  Instagram,
+  Mail,
+  TrendingUp,
+  ShieldCheck,
+} from "lucide-react";
 
 interface ConnectionManagerProps {
   apiBase: string;
@@ -11,12 +20,20 @@ interface ConnectionManagerProps {
   onRefresh: () => void;
 }
 
-export function ConnectionManager({ apiBase, activeWorkspace, connectorStatus, onRefresh }: ConnectionManagerProps) {
+export function ConnectionManager({
+  apiBase,
+  activeWorkspace,
+  connectorStatus,
+  onRefresh,
+}: ConnectionManagerProps) {
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleConnectProvider = async (providerConfigKey: string, friendlyName: string) => {
+  const handleConnectProvider = async (
+    providerConfigKey: string,
+    friendlyName: string,
+  ) => {
     if (!activeWorkspace) {
       setError("Please create and open a workspace first.");
       return;
@@ -31,57 +48,76 @@ export function ConnectionManager({ apiBase, activeWorkspace, connectorStatus, o
     setSuccessMsg(null);
 
     try {
-      console.log(`📡 [Nango Session] Requesting short-lived session token from backend for connection ID: ${connectionId}...`);
-      
+      console.log(
+        `📡 [Nango Session] Requesting short-lived session token from backend for connection ID: ${connectionId}...`,
+      );
+
       // 1. Get Nango Session Token from Fastify backend (which queries Nango Cloud securely using the Secret API Key)
       const tokenRes = await fetch(`${apiBase}/api/connectors/nango/session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           connectionId,
-          providerConfigKey
-        })
+          providerConfigKey,
+        }),
       });
 
       const tokenData = await tokenRes.json();
       if (!tokenRes.ok || !tokenData.token) {
-        throw new Error(tokenData.error || "Failed to generate connection session token.");
+        throw new Error(
+          tokenData.error || "Failed to generate connection session token.",
+        );
       }
 
       const sessionToken = tokenData.token;
-      console.log("✅ [Nango Session] Token received. Initializing Connect UI popup...");
+      console.log(
+        "✅ [Nango Session] Token received. Initializing Connect UI popup...",
+      );
 
       // 2. Instantiate Nango with the session token
       const nango = new Nango({
-        connectSessionToken: sessionToken
+        connectSessionToken: sessionToken,
       });
 
       // 3. Open the Nango Connect UI using the session token and listen for the connect event
       const connectUI = nango.openConnectUI({
         sessionToken: sessionToken,
         onEvent: async (event) => {
-          console.log(`📥 [Nango Connect UI] Event received: ${event.type}`, event);
-          
+          console.log(
+            `📥 [Nango Connect UI] Event received: ${event.type}`,
+            event,
+          );
+
           if (event.type === "connect") {
-            console.log("✅ [Nango Connect UI] Authorized successfully. Registering source context in SQLite...");
-            
+            console.log(
+              "✅ [Nango Connect UI] Authorized successfully. Registering source context in SQLite...",
+            );
+
             try {
-              const connectRes = await fetch(`${apiBase}/api/connectors/nango/connect`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  connectionId,
-                  providerConfigKey,
-                  displayName
-                })
-              });
+              const connectRes = await fetch(
+                `${apiBase}/api/connectors/nango/connect`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    connectionId,
+                    providerConfigKey,
+                    displayName,
+                  }),
+                },
+              );
 
               const connectData = await connectRes.json();
               if (!connectRes.ok || !connectData.success) {
-                throw new Error(connectData.error || "Failed to register active connection in workspace database.");
+                throw new Error(
+                  connectData.error ||
+                    "Failed to register active connection in workspace database.",
+                );
               }
 
-              setSuccessMsg(`Successfully connected to ${friendlyName}! Real-time data sync has started.`);
+              setSuccessMsg(
+                `Successfully connected to ${friendlyName}! Real-time data sync has started.`,
+              );
               onRefresh();
             } catch (err: any) {
               setError(err.message || "Failed to persist connection state.");
@@ -94,26 +130,36 @@ export function ConnectionManager({ apiBase, activeWorkspace, connectorStatus, o
             connectUI.close();
             setConnectingId(null);
           } else if (event.type === "error") {
-            const errMessage = event.payload?.errorMessage || "Unknown authorization failure.";
+            const errMessage =
+              event.payload?.errorMessage || "Unknown authorization failure.";
             console.error("❌ [Nango Connect UI] Error callback:", errMessage);
             setError(errMessage);
             connectUI.close();
             setConnectingId(null);
           }
-        }
+        },
       });
-
     } catch (err: any) {
       console.error(`❌ Integration error for ${friendlyName}:`, err);
-      setError(err.message || `Could not initiate connection to ${friendlyName}.`);
+      setError(
+        err.message || `Could not initiate connection to ${friendlyName}.`,
+      );
       setConnectingId(null);
     }
   };
 
   // Helper checking if a connector state is active
   const getStatusInfo = (providerKey: string) => {
-    const statusObj = connectorStatus?.[providerKey === "instagram-posts" ? "instagram" : providerKey === "gmail-threads" ? "gmail" : "google_ads"];
-    const isConnected = statusObj?.state === "connected" || statusObj?.state === "ready";
+    const statusObj =
+      connectorStatus?.[
+        providerKey === "instagram-posts"
+          ? "instagram"
+          : providerKey === "gmail-threads"
+            ? "gmail"
+            : "google_ads"
+      ];
+    const isConnected =
+      statusObj?.state === "connected" || statusObj?.state === "ready";
     const lastSync = statusObj?.lastSync;
     return { isConnected, lastSync };
   };
@@ -122,24 +168,27 @@ export function ConnectionManager({ apiBase, activeWorkspace, connectorStatus, o
     {
       id: "instagram-posts",
       title: "Instagram Organic Feed",
-      description: "Sync your marketing posts, reaches, impressions, and conversions.",
+      description:
+        "Sync your marketing posts, reaches, impressions, and conversions.",
       icon: Instagram,
-      color: "text-pink-400 hover:border-pink-500/40"
+      color: "text-pink-400 hover:border-pink-500/40",
     },
     {
       id: "gmail-threads",
       title: "Gmail Inbound Sales",
-      description: "Track customer leads, queries, and conversations automatically.",
+      description:
+        "Track customer leads, queries, and conversations automatically.",
       icon: Mail,
-      color: "text-red-400 hover:border-red-500/40"
+      color: "text-red-400 hover:border-red-500/40",
     },
     {
       id: "google-ads",
       title: "Google Ads Campaigns",
-      description: "Analyze search impressions, budgets, clicks, and conversion rates.",
+      description:
+        "Analyze search impressions, budgets, clicks, and conversion rates.",
       icon: TrendingUp,
-      color: "text-blue-400 hover:border-blue-500/40"
-    }
+      color: "text-blue-400 hover:border-blue-500/40",
+    },
   ];
 
   return (
@@ -180,7 +229,7 @@ export function ConnectionManager({ apiBase, activeWorkspace, connectorStatus, o
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <Icon className="h-8 w-8 text-neutral-300" />
-                  
+
                   {isConnected ? (
                     <span className="bg-emerald-950/40 border border-emerald-900 text-emerald-400 text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 font-bold uppercase">
                       <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></span>
@@ -193,8 +242,12 @@ export function ConnectionManager({ apiBase, activeWorkspace, connectorStatus, o
                   )}
                 </div>
 
-                <h3 className="font-bold text-white text-base leading-tight mb-2">{item.title}</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed mb-4">{item.description}</p>
+                <h3 className="font-bold text-white text-base leading-tight mb-2">
+                  {item.title}
+                </h3>
+                <p className="text-xs text-neutral-400 leading-relaxed mb-4">
+                  {item.description}
+                </p>
               </div>
 
               <div className="space-y-3">
@@ -203,7 +256,7 @@ export function ConnectionManager({ apiBase, activeWorkspace, connectorStatus, o
                     Last Synced: {new Date(lastSync).toLocaleString()}
                   </p>
                 )}
-                
+
                 <button
                   onClick={() => handleConnectProvider(item.id, item.title)}
                   disabled={isProcessing}

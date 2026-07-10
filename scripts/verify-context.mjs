@@ -118,7 +118,9 @@ function checkFile(filePath) {
           "BRAND_FOUNDATION.md",
         ].some((f) => filePath.includes(f))
       ) {
-        warnings.push(`Key vocabulary term "${term}" not found in marketing document`);
+        warnings.push(
+          `Key vocabulary term "${term}" not found in marketing document`,
+        );
       }
     }
   }

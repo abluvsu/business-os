@@ -457,32 +457,42 @@ export function registerConnectorRoutes(
       },
     },
     async (request, reply) => {
-      const apiKey = process.env.NANGO_SECRET_KEY || "key_test_549320ab-c32b-456b-a25e-e48d390a7732";
+      const apiKey =
+        process.env.NANGO_SECRET_KEY ||
+        "key_test_549320ab-c32b-456b-a25e-e48d390a7732";
       const { connectionId, providerConfigKey } = request.body;
 
       try {
-        console.log(`📡 Requesting session token from Nango Cloud for connection ${connectionId}...`);
+        console.log(
+          `📡 Requesting session token from Nango Cloud for connection ${connectionId}...`,
+        );
         const res = await axios.post(
           "https://api.nango.dev/connect/sessions",
           {
-            allowed_integrations: [providerConfigKey]
+            allowed_integrations: [providerConfigKey],
           },
           {
             headers: {
               Authorization: `Bearer ${apiKey}`,
             },
-          }
+          },
         );
 
         return { token: res.data.token };
       } catch (err: any) {
-        console.error("❌ Failed to create Nango Session Token:", err.response?.data || err.message);
+        console.error(
+          "❌ Failed to create Nango Session Token:",
+          err.response?.data || err.message,
+        );
         return reply.status(400).send({
           success: false,
-          error: err.response?.data?.message || err.message || "Failed to create session token"
+          error:
+            err.response?.data?.message ||
+            err.message ||
+            "Failed to create session token",
         });
       }
-    }
+    },
   );
 
   // POST register Nango credentials and connection securely
@@ -511,7 +521,9 @@ export function registerConnectorRoutes(
 
       const { connectionId, providerConfigKey, displayName, baseUrl } =
         request.body;
-      const apiKey = process.env.NANGO_SECRET_KEY || "key_test_549320ab-c32b-456b-a25e-e48d390a7732";
+      const apiKey =
+        process.env.NANGO_SECRET_KEY ||
+        "key_test_549320ab-c32b-456b-a25e-e48d390a7732";
 
       try {
         const existing = await db
