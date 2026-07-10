@@ -45,17 +45,59 @@ const REQUIRED_VOCABULARY = {
   MVP: "the current stage; validate with real users before expanding",
 };
 
+// Sections to skip for banned word checks (these contain the banned words as examples of what NOT to use)
+const SKIP_SECTIONS = [
+  "## 11. Writing Style",
+  "## Writing Style",
+  "Avoid these words",
+  "Avoid these words and their cousins",
+  "banned",
+  "do not use",
+  "avoid entirely",
+];
+
+function shouldSkipSection(content, matchIndex) {
+  // Look backwards from match to find nearest heading
+  const beforeMatch = content.substring(0, matchIndex);
+  const headings = [
+    "## 11. Writing Style",
+    "## Writing Style",
+    "### Writing Style",
+    "## 11. Writing",
+    "Avoid these words",
+    "Avoid these words and their cousins",
+    "banned words",
+    "do not use",
+    "avoid entirely",
+  ];
+
+  for (const heading of headings) {
+    const lastHeadingIndex = beforeMatch.lastIndexOf(heading);
+    if (lastHeadingIndex !== -1) {
+      // Check if there's another heading after this one but before our match
+      const nextHeadingIndex = content.indexOf("\n## ", lastHeadingIndex + 1);
+      if (nextHeadingIndex === -1 || nextHeadingIndex > matchIndex) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function checkFile(filePath) {
   const content = fs.readFileSync(filePath, "utf8");
   const errors = [];
   const warnings = [];
 
-  // Check for banned words
+  // Check for banned words (with section skipping)
   for (const word of BANNED_WORDS) {
     const regex = new RegExp(`\\b${word}\\b`, "gi");
-    const matches = content.match(regex);
-    if (matches) {
-      warnings.push(`Banned word "${word}" found ${matches.length} time(s)`);
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      if (!shouldSkipSection(content, match.index)) {
+        warnings.push(`Banned word "${word}" found`);
+        break; // Only warn once per word per file
+      }
     }
   }
 
@@ -76,9 +118,7 @@ function checkFile(filePath) {
           "BRAND_FOUNDATION.md",
         ].some((f) => filePath.includes(f))
       ) {
-        warnings.push(
-          `Key vocabulary term "${term}" not found in marketing document`,
-        );
+        warnings.push(`Key vocabulary term "${term}" not found in marketing document`);
       }
     }
   }

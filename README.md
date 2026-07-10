@@ -20,29 +20,32 @@ Business OS is a **local-first, privacy-respecting AI workspace** that helps sol
 **It is:** a calm workspace that already understands your business and helps you make better marketing decisions by talking with you.
 
 ### The Problem
+
 Solo founders run marketing across 5+ tools (Instagram, Gmail, Google Ads, Google Analytics, WhatsApp, Sheets). They:
+
 - Can't tell what's actually working — spend, posts, emails scattered across tools
 - Get overwhelmed by dashboards — more charts ≠ more clarity
 - Have no one to ask — agencies too expensive, friends give guesses
 - Fear losing control — data shipped to unknown servers, locked in vendors
 
 ### The Solution
-Business OS connects to your accounts via OAuth, normalizes everything into a **canonical domain model** (Campaigns, Customers, Products, Metrics), and lets you chat with an AI that *only sees your structured, validated data* — no raw API payloads, no hallucinations.
+
+Business OS connects to your accounts via OAuth, normalizes everything into a **canonical domain model** (Campaigns, Customers, Products, Metrics), and lets you chat with an AI that _only sees your structured, validated data_ — no raw API payloads, no hallucinations.
 
 ---
 
 ## ✨ Key Features
 
-| Feature | Description |
-|---------|-------------|
-| 🔒 **Local-First** | SQLite database on your machine. Zero cloud dependency. |
-| 🧠 **Trust Pipeline** | 6-stage ingestion: Adapter → Zod Validation → Normalization → Canonical Objects → Business Validation → Persistence. Bad data never reaches the LLM. |
-| 💬 **Conversation-First UX** | Chat interface. Ask "Why did CPA spike?" → get chart + 2-sentence insight + 2 actionable recommendations. |
-| 📊 **Canonical Domain Model** | Platform-agnostic: `BusinessEntity` (campaign, customer, product) + `TimeSeriesMetric` (spend, clicks, revenue, conversions). |
-| 🔌 **Standardized Connectors** | Instagram, Gmail, Google Ads, Website. Each implements 6-step lifecycle: `authenticate → discover → sync → normalize → validate → persist`. |
-| 📈 **Built-in Product Analytics** | Tracks TTFI (Time to First Insight), activation funnel, friction points — the product dogfoods itself. |
-| 🔄 **Workspace Isolation** | One SQLite file per project. Process locking prevents corruption. Auto-restore last session. |
-| ⚡ **Dual-LLM Fallback** | Primary (OpenRouter) + Fallback provider + Local heuristic. Never leaves you without an answer. |
+| Feature                           | Description                                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔒 **Local-First**                | SQLite database on your machine. Zero cloud dependency.                                                                                              |
+| 🧠 **Trust Pipeline**             | 6-stage ingestion: Adapter → Zod Validation → Normalization → Canonical Objects → Business Validation → Persistence. Bad data never reaches the LLM. |
+| 💬 **Conversation-First UX**      | Chat interface. Ask "Why did CPA spike?" → get chart + 2-sentence insight + 2 actionable recommendations.                                            |
+| 📊 **Canonical Domain Model**     | Platform-agnostic: `BusinessEntity` (campaign, customer, product) + `TimeSeriesMetric` (spend, clicks, revenue, conversions).                        |
+| 🔌 **Standardized Connectors**    | Instagram, Gmail, Google Ads, Website. Each implements 6-step lifecycle: `authenticate → discover → sync → normalize → validate → persist`.          |
+| 📈 **Built-in Product Analytics** | Tracks TTFI (Time to First Insight), activation funnel, friction points — the product dogfoods itself.                                               |
+| 🔄 **Workspace Isolation**        | One SQLite file per project. Process locking prevents corruption. Auto-restore last session.                                                         |
+| ⚡ **Dual-LLM Fallback**          | Primary (OpenRouter) + Fallback provider + Local heuristic. Never leaves you without an answer.                                                      |
 
 ---
 
@@ -71,6 +74,7 @@ Business OS connects to your accounts via OAuth, normalizes everything into a **
 ```
 
 ### Monorepo Structure
+
 ```
 business-os/
 ├── apps/
@@ -96,10 +100,12 @@ business-os/
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - **Node.js 24+** (required for native `node:sqlite`)
 - **pnpm 11+**
 
 ### Install & Run
+
 ```bash
 # Clone
 git clone https://github.com/abluvsu/business-os.git
@@ -115,7 +121,9 @@ pnpm dev
 Open http://localhost:3000 → Create Workspace → Connect Instagram/Gmail/Google Ads → Start chatting.
 
 ### Environment Variables
+
 Create `apps/server/.env`:
+
 ```env
 # Meta (Instagram)
 META_APP_ID=your_app_id
@@ -137,22 +145,23 @@ PRIMARY_AI_MODEL=meta-llama/llama-3.1-8b-instruct:free
 
 ## 📚 Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [System Specification](spec.md) | Architecture, schema, contracts, lifecycle |
-| [Company Context](company/COMPANY_CONTEXT.md) | **Start here** — ICP, 8 principles, vocabulary, AI agent rules |
-| [Company Manifest](company/COMPANY_MANIFEST.md) | Mission, V1 scope, principles, current sprint |
-| [Decisions Register](company/DECISIONS.md) | All architectural decisions (ADRs) with rationale |
-| [Domain Model](docs/architecture/DOMAIN_MODEL.md) | Canonical `BusinessEntity` + `TimeSeriesMetric` |
-| [Trust Pipeline](docs/architecture/TRUST_PIPELINE.md) | 6-stage ingestion, failure philosophy, connector design |
+| Document                                                      | Purpose                                                         |
+| ------------------------------------------------------------- | --------------------------------------------------------------- |
+| [System Specification](spec.md)                               | Architecture, schema, contracts, lifecycle                      |
+| [Company Context](company/COMPANY_CONTEXT.md)                 | **Start here** — ICP, 8 principles, vocabulary, AI agent rules  |
+| [Company Manifest](company/COMPANY_MANIFEST.md)               | Mission, V1 scope, principles, current sprint                   |
+| [Decisions Register](company/DECISIONS.md)                    | All architectural decisions (ADRs) with rationale               |
+| [Domain Model](docs/architecture/DOMAIN_MODEL.md)             | Canonical `BusinessEntity` + `TimeSeriesMetric`                 |
+| [Trust Pipeline](docs/architecture/TRUST_PIPELINE.md)         | 6-stage ingestion, failure philosophy, connector design         |
 | [Architecture Audit](docs/architecture/ARCHITECTURE_AUDIT.md) | 30 assumptions stress-tested, 100 failure scenarios, scale sims |
-| [Sprint 000 Review](operations/SPRINT_000_REVIEW.md) | What was built, verification, lessons, tech debt, risks |
+| [Sprint 000 Review](operations/SPRINT_000_REVIEW.md)          | What was built, verification, lessons, tech debt, risks         |
 
 ---
 
 ## 🛠 Development
 
 ### Commands
+
 ```bash
 pnpm dev              # Start dev servers (parallel)
 pnpm build            # Build all packages
@@ -167,10 +176,12 @@ pnpm validate:all     # Run all three
 ```
 
 ### Git Hooks (Husky)
+
 - **pre-commit**: ADR validation + docs freshness + context compliance + Prettier + commitlint
 - **commit-msg**: Enforces conventional commits (`feat:`, `fix:`, `adr:`, `decision:`, `sprint:`)
 
 ### Creating an ADR
+
 ```bash
 # 1. Use the issue template
 gh issue create --template adr.md

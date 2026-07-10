@@ -441,7 +441,51 @@ export function registerConnectorRoutes(
     },
   );
 
-  // POST register Nango credentials and connection
+  // POST generate a Nango Connect Session Token securely
+  server.post(
+    "/api/connectors/nango/session",
+    {
+      schema: {
+        body: z.object({
+          connectionId: z.string(),
+          providerConfigKey: z.string(),
+        }),
+        response: {
+          200: z.object({ token: z.string() }),
+          400: z.object({ success: z.boolean(), error: z.string() }),
+        },
+      },
+    },
+    async (request, reply) => {
+      const apiKey = process.env.NANGO_SECRET_KEY || "key_test_549320ab-c32b-456b-a25e-e48d390a7732";
+      const { connectionId, providerConfigKey } = request.body;
+
+      try {
+        console.log(`📡 Requesting session token from Nango Cloud for connection ${connectionId}...`);
+        const res = await axios.post(
+          "https://api.nango.dev/connect/sessions",
+          {
+            allowed_integrations: [providerConfigKey]
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+            },
+          }
+        );
+
+        return { token: res.data.token };
+      } catch (err: any) {
+        console.error("❌ Failed to create Nango Session Token:", err.response?.data || err.message);
+        return reply.status(400).send({
+          success: false,
+          error: err.response?.data?.message || err.message || "Failed to create session token"
+        });
+      }
+    }
+  );
+
+  // POST register Nango credentials and connection securely
   server.post(
     "/api/connectors/nango/connect",
     {
@@ -450,7 +494,6 @@ export function registerConnectorRoutes(
           connectionId: z.string(),
           providerConfigKey: z.string(),
           displayName: z.string(),
-          apiKey: z.string(),
           baseUrl: z.string().optional(),
         }),
         response: {
@@ -466,8 +509,9 @@ export function registerConnectorRoutes(
           .status(400)
           .send({ success: false, error: "Workspace offline" });
 
-      const { connectionId, providerConfigKey, displayName, apiKey, baseUrl } =
+      const { connectionId, providerConfigKey, displayName, baseUrl } =
         request.body;
+      const apiKey = process.env.NANGO_SECRET_KEY || "key_test_549320ab-c32b-456b-a25e-e48d390a7732";
 
       try {
         const existing = await db
