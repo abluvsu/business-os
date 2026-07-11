@@ -58,19 +58,23 @@ registerCompanyRoutes(fastify, manager);
 startSyncWorker(manager);
 
 // Health check - optimized for load balancer probes
-fastify.get("/health", {
-  config: {
-    logLevel: "silent",
+fastify.get(
+  "/health",
+  {
+    config: {
+      logLevel: "silent",
+    },
   },
-}, async () => {
-  const ws = manager.active();
-  return {
-    workspace: ws ? "opened" : "closed",
-    database: ws ? "connected" : "disconnected",
-    version: "0.0.1",
-    uptime: process.uptime(),
-  };
-});
+  async () => {
+    const ws = manager.active();
+    return {
+      workspace: ws ? "opened" : "closed",
+      database: ws ? "connected" : "disconnected",
+      version: "0.0.1",
+      uptime: process.uptime(),
+    };
+  },
+);
 
 // Event stream for frontend sync completion notification (SSE)
 fastify.get("/api/events", (request, reply) => {
