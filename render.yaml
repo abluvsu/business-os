@@ -3,8 +3,8 @@ services:
     name: business-os-server
     runtime: node
     plan: starter
-    buildCommand: cd apps/server && npm install && npm run build
-    startCommand: cd apps/server && npm start
+    buildCommand: pnpm install && pnpm --filter business-os-server build
+    startCommand: pnpm --filter @business-os/workspace migrate && pnpm --filter business-os-server start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -37,19 +37,3 @@ services:
         sync: false
     autoDeploy: true
 
-  - type: web
-    name: business-os-web
-    runtime: static
-    buildCommand: cd apps/web && npm install --legacy-peer-deps && npm run build
-    staticPublishPath: apps/web/.next
-    envVars:
-      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-        sync: false
-      - key: CLERK_SECRET_KEY
-        sync: false
-      - key: NEXT_PUBLIC_API_URL
-        value: https://business-os-server.onrender.com
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html

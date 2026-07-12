@@ -137,12 +137,19 @@ ${companyProfile.targetAudience ? `Target Audience: ${companyProfile.targetAudie
         let recommendations: string[] = [];
         let success = false;
 
+        const isDogfood = process.env.DOGFOOD_MODE === "true";
+
         const systemPrompt = `You are BusinessOS, an expert marketing analyst.
-Here is the current performance context from the database:
+Here is the current performance context from the SQLite database:
 ${contextSummary}${companyContext}
 
 Provide a 2-3 sentence analysis of the data focusing on the user's question.
-You MUST output exactly 2 recommendations at the end, each on a new line starting with a dash (e.g. "- Recommendation text"). Do not use any other bullet characters or numbers.`;
+
+CRITICAL DOGFOODING RULES:
+1. You must be strictly truthful and evidence-backed. Mention the specific data sources (e.g. organic Instagram posts, Gmail thread count) and date coverage if known.
+2. If there is insufficient data, missing integrations, or uncertainty, explicitly state the limitations and say what is missing rather than inventing or pretending.
+3. Never issue paid-ad, budget reallocation, or ROAS recommendations (e.g. pausing ad sets) unless there is active, non-zero spend or paid ad data present in the database context. If you only see organic posts or email activity, focus recommendations strictly on organic engagement or email management.
+4. You MUST output exactly 2 recommendations at the end, each on a new line starting with a dash (e.g. "- Recommendation text"). Do not use any other bullet characters or numbers.`;
 
         // Try Primary AI first
         if (primaryAI && !success) {
@@ -211,11 +218,19 @@ You MUST output exactly 2 recommendations at the end, each on a new line startin
 
         // Final local heuristic fallback if both APIs fail
         if (!success) {
-          aiText = `Based on your data, ${campaigns[0]?.name || "your top campaign"} is generating the most clicks relative to spend. (Note: This is a local fallback response because all AI providers are currently unavailable.)`;
-          recommendations = [
-            "Reallocate 15% budget to the best performing campaign.",
-            "Pause underperforming ad sets to improve ROAS.",
-          ];
+          if (isDogfood) {
+            aiText = "I was unable to analyze your data because the AI providers are currently offline or unavailable. Please check your network connection and configuration key in apps/server/.env.";
+            recommendations = [
+              "Verify PRIMARY_AI_API_KEY is correct and active.",
+              "Ensure your internet connection is active."
+            ];
+          } else {
+            aiText = `Based on your data, ${campaigns[0]?.name || "your top campaign"} is generating the most clicks relative to spend. (Note: This is a local fallback response because all AI providers are currently unavailable.)`;
+            recommendations = [
+              "Reallocate 15% budget to the best performing campaign.",
+              "Pause underperforming ad sets to improve ROAS.",
+            ];
+          }
         }
 
         return {

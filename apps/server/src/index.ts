@@ -35,7 +35,7 @@ fastify.register(compress, {
 
 // Register CORS for web app communication
 fastify.register(cors, {
-  origin: true,
+  origin: process.env.WEB_URL || "http://localhost:3000",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -112,7 +112,37 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
+const preflightCheck = () => {
+  const isDogfood = process.env.DOGFOOD_MODE === "true";
+  if (!isDogfood) return;
+
+  console.log("🔒 [Preflight] Running in strict DOGFOOD mode. Validating configurations...");
+  const required = [
+    "WEB_URL",
+    "API_URL",
+    "META_APP_ID",
+    "META_APP_SECRET",
+    "META_REDIRECT_URI",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_REDIRECT_URI",
+    "PRIMARY_AI_API_KEY",
+    "CLERK_SECRET_KEY",
+  ];
+
+  const missing = required.filter((name) => !process.env[name]);
+
+  if (missing.length > 0) {
+    console.error("❌ [Preflight] Missing required environment configurations for DOGFOOD mode:");
+    missing.forEach((name) => console.error(`  - ${name}`));
+    console.error("Please configure these in apps/server/.env before running BusinessOS.");
+    process.exit(1);
+  }
+  console.log("✅ [Preflight] All configurations present.");
+};
+
 const start = async () => {
+  preflightCheck();
   try {
     const port = parseInt(process.env.PORT || "4000", 10);
     const host =

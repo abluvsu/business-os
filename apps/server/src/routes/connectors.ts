@@ -6,6 +6,7 @@ import {
   knowledgeSources,
   businessEntities,
   observations,
+  analyticsEvents,
 } from "@business-os/workspace";
 import { eq } from "drizzle-orm";
 import axios from "axios";
@@ -104,6 +105,8 @@ export function registerConnectorRoutes(
   manager: WorkspaceManager,
 ) {
   const server = fastify.withTypeProvider<ZodTypeProvider>();
+  const webUrl = process.env.WEB_URL || "http://localhost:3000";
+  const apiUrl = process.env.API_URL || "http://127.0.0.1:4000";
 
   server.get(
     "/api/connectors/status",
@@ -227,7 +230,7 @@ export function registerConnectorRoutes(
   server.get("/api/connectors/instagram/callback", async (request, reply) => {
     const query = request.query as { code?: string; error?: string };
     if (query.error || !query.code) {
-      return reply.redirect("http://localhost:3000?error=auth_failed");
+      return reply.redirect(`${webUrl}?error=auth_failed`);
     }
 
     const clientId = process.env.META_APP_ID;
@@ -270,13 +273,13 @@ export function registerConnectorRoutes(
         progress: 10,
       });
       axios
-        .post(`http://localhost:4000/api/connectors/instagram/sync`)
+        .post(`${apiUrl}/api/connectors/instagram/sync`)
         .catch(() => {});
       // Redirect back to frontend
-      reply.redirect("http://localhost:3000?connected=instagram");
+      reply.redirect(`${webUrl}?connected=instagram`);
     } catch (err: any) {
       console.error("OAuth Exchange Error:", err.response?.data || err.message);
-      reply.redirect("http://localhost:3000?error=exchange_failed");
+      reply.redirect(`${webUrl}?error=exchange_failed`);
     }
   });
 
@@ -320,7 +323,7 @@ export function registerConnectorRoutes(
       state?: string;
     };
     if (query.error || !query.code) {
-      return reply.redirect("http://localhost:3000?error=auth_failed");
+      return reply.redirect(`${webUrl}?error=auth_failed`);
     }
 
     const oauth2Client = getGoogleOAuthClient();
@@ -361,13 +364,13 @@ export function registerConnectorRoutes(
       });
       const syncEndpoint = isGoogleAds ? "google-ads" : "gmail";
       axios
-        .post(`http://localhost:4000/api/connectors/${syncEndpoint}/sync`)
+        .post(`${apiUrl}/api/connectors/${syncEndpoint}/sync`)
         .catch(() => {});
       // Redirect back to frontend
-      reply.redirect(`http://localhost:3000?connected=${syncEndpoint}`);
+      reply.redirect(`${webUrl}?connected=${syncEndpoint}`);
     } catch (err: any) {
       console.error("Google OAuth Exchange Error:", err.message);
-      reply.redirect("http://localhost:3000?error=exchange_failed");
+      reply.redirect(`${webUrl}?error=exchange_failed`);
     }
   });
 
@@ -563,6 +566,9 @@ export function registerConnectorRoutes(
           .status(400)
           .send({ success: false, message: "Workspace offline" });
 
+      const tenantContext = (request as any).tenantContext;
+      const workspaceId = tenantContext?.activeWorkspaceId || "ws-active";
+
       const sources = await db
         .select()
         .from(knowledgeSources)
@@ -622,10 +628,26 @@ export function registerConnectorRoutes(
               }
             }
           } catch (apiErr: any) {
-            console.warn(
-              "Real Gmail API failed. Falling back to recovery data:",
-              apiErr.message,
-            );
+            console.warn("Gmail API failed:", apiErr.message);
+            if (process.env.DOGFOOD_MODE === "true") {
+              try {
+                await db.insert(analyticsEvents).values({
+                  id: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                  sessionId: "system",
+                  eventName: "Sync Failed",
+                  category: "Friction",
+                  properties: JSON.stringify({
+                    connectorId: "gmail_v1",
+                    error: apiErr.message,
+                    timestamp: new Date().toISOString()
+                  }),
+                  createdAt: new Date().toISOString(),
+                });
+              } catch (e) {}
+
+              throw new Error(`Gmail Sync Failed: ${apiErr.message}`);
+            }
+
             activeSyncJobs.set("gmail_v1", {
               status: "syncing",
               message: "Real API failed. Falling back to recovery cache...",
@@ -671,7 +693,7 @@ export function registerConnectorRoutes(
               .insert(businessEntities)
               .values({
                 id: entityId,
-                workspaceId: "ws-active",
+                workspaceId: workspaceId,
                 sourceId: source.id,
                 externalId: item.external_id,
                 type: "email_thread",
@@ -693,7 +715,7 @@ export function registerConnectorRoutes(
               .insert(observations)
               .values({
                 id: `metric-${item.external_id}-thread_messages-${dateOnly}`,
-                workspaceId: "ws-active",
+                workspaceId: workspaceId,
                 sourceId: source.id,
                 entityId: entityId,
                 date: today,
@@ -739,6 +761,9 @@ export function registerConnectorRoutes(
           .status(400)
           .send({ success: false, message: "Workspace offline" });
 
+      const tenantContext = (request as any).tenantContext;
+      const workspaceId = tenantContext?.activeWorkspaceId || "ws-active";
+
       const sources = await db
         .select()
         .from(knowledgeSources)
@@ -768,10 +793,26 @@ export function registerConnectorRoutes(
             // Attempt using real Google Ads API (or simulation here, falling back to mock)
             throw new Error("Simulated Ads API error - using fallback cache");
           } catch (apiErr: any) {
-            console.warn(
-              "Google Ads API failed or simulated. Falling back to recovery data:",
-              apiErr.message,
-            );
+            console.warn("Google Ads API failed or simulated:", apiErr.message);
+            if (process.env.DOGFOOD_MODE === "true") {
+              try {
+                await db.insert(analyticsEvents).values({
+                  id: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                  sessionId: "system",
+                  eventName: "Sync Failed",
+                  category: "Friction",
+                  properties: JSON.stringify({
+                    connectorId: "google_ads_v1",
+                    error: apiErr.message,
+                    timestamp: new Date().toISOString()
+                  }),
+                  createdAt: new Date().toISOString(),
+                });
+              } catch (e) {}
+
+              throw new Error(`Google Ads Sync Failed: ${apiErr.message}`);
+            }
+
             activeSyncJobs.set("google_ads_v1", {
               status: "syncing",
               message: "Falling back to recovery cache...",
@@ -793,7 +834,7 @@ export function registerConnectorRoutes(
               .insert(businessEntities)
               .values({
                 id: entityId,
-                workspaceId: "ws-active",
+                workspaceId: workspaceId,
                 sourceId: source.id,
                 externalId: item.external_id,
                 type: "campaign",
@@ -819,7 +860,7 @@ export function registerConnectorRoutes(
                 .insert(observations)
                 .values({
                   id: `metric-${item.external_id}-${name}-${dateOnly}`,
-                  workspaceId: "ws-active",
+                  workspaceId: workspaceId,
                   sourceId: source.id,
                   entityId: entityId,
                   date: today,
@@ -870,6 +911,9 @@ export function registerConnectorRoutes(
         return reply
           .status(400)
           .send({ success: false, message: "Workspace offline" });
+
+      const tenantContext = (request as any).tenantContext;
+      const workspaceId = tenantContext?.activeWorkspaceId || "ws-active";
 
       const sources = await db
         .select()
@@ -959,10 +1003,26 @@ export function registerConnectorRoutes(
               );
             }
           } catch (apiErr: any) {
-            console.warn(
-              "Real Instagram Organic API failed. Falling back to recovery organic posts:",
-              apiErr.message,
-            );
+            console.warn("Instagram Organic API failed:", apiErr.message);
+            if (process.env.DOGFOOD_MODE === "true") {
+              try {
+                await db.insert(analyticsEvents).values({
+                  id: `evt-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                  sessionId: "system",
+                  eventName: "Sync Failed",
+                  category: "Friction",
+                  properties: JSON.stringify({
+                    connectorId: "instagram_graph_v1",
+                    error: apiErr.message,
+                    timestamp: new Date().toISOString()
+                  }),
+                  createdAt: new Date().toISOString(),
+                });
+              } catch (e) {}
+
+              throw new Error(`Instagram Sync Failed: ${apiErr.message}`);
+            }
+
             activeSyncJobs.set("instagram_graph_v1", {
               status: "syncing",
               message: "Organic API unavailable. Loading profile mock...",
@@ -984,7 +1044,7 @@ export function registerConnectorRoutes(
               .insert(businessEntities)
               .values({
                 id: entityId,
-                workspaceId: "ws-active",
+                workspaceId: workspaceId,
                 sourceId: source.id,
                 externalId: item.external_id,
                 type: (item as any).type || "campaign",
@@ -1007,7 +1067,7 @@ export function registerConnectorRoutes(
                 .insert(observations)
                 .values({
                   id: `metric-${item.external_id}-${name}-${dateOnly}`,
-                  workspaceId: "ws-active",
+                  workspaceId: workspaceId,
                   sourceId: source.id,
                   entityId: entityId,
                   date: today,

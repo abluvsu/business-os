@@ -52,15 +52,32 @@ export class WorkspaceManager {
   private dbRef: any = null;
 
   constructor() {
-    const config = getGlobalConfig();
-    if (config.activeWorkspacePath) {
+    if (process.env.TURSO_CONNECTION_URL) {
+      console.log("🔌 [WorkspaceManager] Initializing Global SaaS Database Connection (Turso)...");
       try {
-        // Try to automatically open on startup
-        this.open(config.activeWorkspacePath);
-      } catch (err) {
-        // Clear active if it failed to open (locked, moved, etc.)
-        config.activeWorkspacePath = null;
-        saveGlobalConfig(config);
+        const { sqlite, db } = createDatabaseConnection("");
+        this.dbSync = sqlite;
+        this.dbRef = db;
+        // Run database migrations safely before release; do not rely on unawaited startup DDL
+        initializeDatabaseTables(sqlite).then(() => {
+          console.log("✅ [WorkspaceManager] SaaS Database Migrations Completed.");
+        }).catch((err) => {
+          console.error("❌ [WorkspaceManager] Migrations failed:", err);
+        });
+      } catch (err: any) {
+        console.error("Failed to connect to SaaS database:", err);
+      }
+    } else {
+      const config = getGlobalConfig();
+      if (config.activeWorkspacePath) {
+        try {
+          // Try to automatically open on startup
+          this.open(config.activeWorkspacePath);
+        } catch (err) {
+          // Clear active if it failed to open (locked, moved, etc.)
+          config.activeWorkspacePath = null;
+          saveGlobalConfig(config);
+        }
       }
     }
   }

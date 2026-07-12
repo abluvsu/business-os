@@ -6,7 +6,7 @@ import {
   createDatabaseConnection,
   initializeDatabaseTables,
 } from "./connection";
-import { knowledgeSources } from "./schema";
+import { knowledgeSources, workspaces, organizations } from "./schema";
 
 test("Database connection integration - preserves domain object identity on query", async () => {
   const tempDbPath = path.join(__dirname, "test-temp-database.sqlite");
@@ -16,6 +16,20 @@ test("Database connection integration - preserves domain object identity on quer
   try {
     const { sqlite, db } = createDatabaseConnection(tempDbPath);
     initializeDatabaseTables(sqlite);
+
+    // Insert required tenancy fixtures to satisfy foreign key constraints
+    await db.insert(organizations).values({
+      id: "org-1",
+      name: "Test Org",
+      createdAt: new Date().toISOString(),
+    });
+
+    await db.insert(workspaces).values({
+      id: "ws-1",
+      organizationId: "org-1",
+      name: "Test Workspace",
+      createdAt: new Date().toISOString(),
+    });
 
     const testSource = {
       id: "ds-123",

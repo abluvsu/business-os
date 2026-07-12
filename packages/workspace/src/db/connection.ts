@@ -53,21 +53,23 @@ export function createDatabaseConnection(dbPath: string): {
   return { sqlite, db };
 }
 
-export function initializeDatabaseTables(sqlite: any): void {
+export async function initializeDatabaseTables(sqlite: any): Promise<void> {
   const isTurso = typeof sqlite.execute === "function";
 
-  const executeDdl = (ddl: string) => {
+  const executeDdl = async (ddl: string) => {
     if (isTurso) {
-      sqlite.execute(ddl).catch((err: any) => {
+      try {
+        await sqlite.execute(ddl);
+      } catch (err: any) {
         console.error("❌ Turso DDL Execution Failed:", err);
-      });
+      }
     } else {
       sqlite.exec(ddl);
     }
   };
 
   // 1. Identity & Tenancy Tables (Must exist first)
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       clerk_user_id TEXT NOT NULL UNIQUE,
@@ -76,7 +78,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS organizations (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -84,7 +86,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS memberships (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -97,7 +99,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS workspaces (
       id TEXT PRIMARY KEY,
       organization_id TEXT NOT NULL,
@@ -108,7 +110,7 @@ export function initializeDatabaseTables(sqlite: any): void {
   `);
 
   // 2. Data Tables (Scoped to Workspaces)
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS knowledge_sources (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -121,7 +123,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS business_entities (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -139,7 +141,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS observations (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -157,7 +159,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS analytics_events (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
@@ -168,7 +170,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS work_items (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -183,7 +185,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -194,7 +196,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS conversation_messages (
       id TEXT PRIMARY KEY,
       conversation_id TEXT NOT NULL,
@@ -205,7 +207,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS context_snapshots (
       id TEXT PRIMARY KEY,
       message_id TEXT NOT NULL,
@@ -215,7 +217,7 @@ export function initializeDatabaseTables(sqlite: any): void {
     );
   `);
 
-  executeDdl(`
+  await executeDdl(`
     CREATE TABLE IF NOT EXISTS sync_metadata (
       source_id TEXT PRIMARY KEY,
       last_sync_at TEXT NOT NULL,

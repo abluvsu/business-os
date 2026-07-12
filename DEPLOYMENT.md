@@ -1,281 +1,334 @@
-# BusinessOS Deployment Guide
+# Business OS — Deployment & Operations Runbook
 
-## Architecture Overview
-
-```
-┌─────────────────┐     HTTPS      ┌─────────────────┐
-│   Vercel        │ ◄─────────────► │   Render        │
-│   (Next.js)     │   API Calls    │   (Fastify)     │
-│   Port 443      │                │   Port 443      │
-└─────────────────┘                └─────────────────┘
-         │                                 │
-         │                                 ▼
-         │                         ┌─────────────────┐
-         │                         │   SQLite DB     │
-         │                         │   (Persistent   │
-         │                         │    Disk on      │
-         │                         │    Render)      │
-         └────────────────────────►│                 │
-                                   └─────────────────┘
-```
+**Everything runs from the `agy` terminal. Zero tab switching required.**
 
 ---
 
-## Prerequisites
+## 0. Your Toolchain (Linked Accounts)
 
-- GitHub repository connected to Vercel & Render
-- Clerk account (for auth)
-- OpenRouter API key (for AI - free tier available)
-- Meta Developer App (for Instagram)
-- Google Cloud Project (for Gmail/Google Ads)
-- Nango account (optional, for managed OAuth)
-
----
-
-## 1. Deploy Server to Render
-
-### Option A: Using render.yaml (Recommended)
-
-1. Push code to GitHub
-2. Go to [Render Dashboard](https://dashboard.render.com)
-3. Click **New** → **Blueprint**
-4. Connect your GitHub repo
-5. Render will detect `render.yaml` and create both services
-6. Add environment variables in Render dashboard (see below)
-
-### Option B: Manual Service Creation
-
-1. **Create Web Service**:
-   - Name: `business-os-server`
-   - Runtime: Node
-   - Build Command: `cd apps/server && npm install && npm run build`
-   - Start Command: `cd apps/server && npm start`
-   - Health Check: `/health`
-   - Plan: Starter ($7/mo) - includes persistent disk
-
-2. **Add Persistent Disk** (for SQLite):
-   - Settings → Disks → Add Disk
-   - Name: `business-os-data`
-   - Mount Path: `/var/data`
-   - Size: 1 GB minimum
-
-3. **Set Environment Variables** in Render Dashboard:
-
-| Variable               | Value                                                                | Notes                                      |
-| ---------------------- | -------------------------------------------------------------------- | ------------------------------------------ |
-| `NODE_ENV`             | `production`                                                         |                                            |
-| `PORT`                 | `4000`                                                               |                                            |
-| `OPENAI_API_KEY`       | `sk-...`                                                             | Or use `PRIMARY_AI_API_KEY` for OpenRouter |
-| `PRIMARY_AI_API_KEY`   | `sk-or-...`                                                          | OpenRouter key (recommended, free models)  |
-| `PRIMARY_AI_BASE_URL`  | `https://openrouter.ai/api/v1`                                       |                                            |
-| `PRIMARY_AI_MODEL`     | `meta-llama/llama-3.1-8b-instruct:free`                              | Free model                                 |
-| `META_APP_ID`          | `123456789`                                                          | From Meta Developer Console                |
-| `META_APP_SECRET`      | `abcdef...`                                                          | From Meta Developer Console                |
-| `META_REDIRECT_URI`    | `https://YOUR-SERVER.onrender.com/api/connectors/instagram/callback` | Update after deploy                        |
-| `GOOGLE_CLIENT_ID`     | `xxx.apps.googleusercontent.com`                                     | From Google Cloud Console                  |
-| `GOOGLE_CLIENT_SECRET` | `GOCSPX-...`                                                         | From Google Cloud Console                  |
-| `GOOGLE_REDIRECT_URI`  | `https://YOUR-SERVER.onrender.com/api/connectors/gmail/callback`     | Update after deploy                        |
-| `CLERK_SECRET_KEY`     | `sk_test_...`                                                        | From Clerk Dashboard                       |
-| `NANGO_SECRET_KEY`     | `key_test_...`                                                       | Optional, from Nango Cloud                 |
+| Tool | Project / Account | Verify with |
+|------|-------------------|-------------|
+| **Git** | `github.com/abluvsu/business-os` | `git remote -v` |
+| **Vercel CLI** | `ashutoshbhandekarpro-4149s-projects/business-os` | `pnpm exec vercel whoami` |
+| **Clerk CLI** | `My Application` (`app_3GJSNYxA6RDUvkvhvGUsqfTyzP1`) | `clerk whoami` |
+| **pnpm** | 11-package workspace | `pnpm -r list --depth=0` |
 
 ---
 
-## 2. Deploy Web App to Vercel
+## 1. One-Time Machine Setup
 
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
-2. Click **Add New** → **Project**
-3. Import your GitHub repo
-4. **Configure**:
-   - Framework Preset: Next.js
-   - Root Directory: `apps/web`
-   - Build Command: `npm run build` (auto-detected)
-   - Install Command: `npm install --legacy-peer-deps`
+Run once on any new machine or fresh clone:
 
-5. **Environment Variables** in Vercel:
+```powershell
+# Install global CLIs
+npm install -g @clerk/cli vercel
 
-| Variable                            | Value                              |
-| ----------------------------------- | ---------------------------------- |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_...` (from Clerk)         |
-| `CLERK_SECRET_KEY`                  | `sk_test_...` (from Clerk)         |
-| `NEXT_PUBLIC_API_URL`               | `https://YOUR-SERVER.onrender.com` |
+# Authenticate
+pnpm exec vercel login
+clerk auth login
 
-6. Deploy → Get URL: `https://business-os-web.vercel.app`
+# Link to projects
+pnpm exec vercel link --yes --project business-os
+clerk link --app app_3GJSNYxA6RDUvkvhvGUsqfTyzP1
 
----
+# Pull env vars
+pnpm exec vercel env pull .env.local
 
-## 3. Configure OAuth Redirect URIs
-
-### Meta (Instagram/Facebook)
-
-1. Go to [Meta Developer Console](https://developers.facebook.com/apps)
-2. Select your app → **Settings** → **Basic**
-3. Add **Valid OAuth Redirect URIs**:
-   - `https://YOUR-SERVER.onrender.com/api/connectors/instagram/callback`
-4. Save → Update `META_REDIRECT_URI` in Render
-
-### Google (Gmail/Google Ads)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. **APIs & Services** → **Credentials**
-3. Edit your OAuth 2.0 Client ID
-4. Add **Authorized redirect URIs**:
-   - `https://YOUR-SERVER.onrender.com/api/connectors/gmail/callback`
-5. Save → Update `GOOGLE_REDIRECT_URI` in Render
-
-### Clerk
-
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com)
-2. Select your application
-3. **Configure** → **Domains**
-4. Add your Vercel domain: `business-os-web.vercel.app`
-5. Update **Allowed Redirect Origins** if needed
-
----
-
-## 4. Verify Deployment
-
-### Health Checks
-
-```bash
-# Server health
-curl https://YOUR-SERVER.onrender.com/health
-
-# Expected response:
-# {
-#   "workspace": "opened|closed",
-#   "database": "connected|disconnected",
-#   "version": "0.0.1",
-#   "uptime": 123.45
-# }
-
-# Web app
-open https://business-os-web.vercel.app
+# Install deps + verify build
+pnpm install
+pnpm build
 ```
 
-### Test Flow
-
-1. Open Vercel URL → Sign in with Clerk
-2. Complete Company Onboarding (name + optional website)
-3. Create Workspace
-4. Go to Connectors tab → Connect Instagram/Gmail/Google Ads
-5. Ask AI a question in Analysis tab
+> **IMPORTANT — Vercel Root Directory (one-time dashboard fix):**  
+> Go to `pnpm exec vercel open` → Settings → General → Root Directory → set to `apps/web` → Save.  
+> After this, all CLI and git-push deploys will work correctly.
 
 ---
 
-## 5. Local Development with Production APIs
+## 2. Golden Deploy Rule
 
-```bash
-# Terminal 1 - Server
-cd apps/server
-cp .env.example .env
-# Fill in production OAuth keys
-npm run dev
+> **Standard path:** code change → `pnpm build` passes → `git push origin main` → Vercel auto-deploys.  
+> Only use `vercel --prod` manually as a break-glass when auto-deploy is broken.
 
-# Terminal 2 - Web
-cd apps/web
-# Add to .env.local:
-# NEXT_PUBLIC_API_URL=https://YOUR-SERVER.onrender.com
-npm run dev
+---
+
+## 3. Daily Development
+
+```powershell
+# Start both apps in parallel (server :4000 + web :3000)
+pnpm dev
+
+# Quick health check
+Invoke-RestMethod -Uri http://localhost:4000/health | ConvertTo-Json
 ```
 
 ---
 
-## 6. Environment Variable Reference
+## 4. Standard Commit → Deploy Flow
 
-### Server (Render)
+```powershell
+# 1. Build must be clean
+pnpm build
 
-| Variable               | Required      | Description                                      |
-| ---------------------- | ------------- | ------------------------------------------------ |
-| `OPENAI_API_KEY`       | No*           | OpenAI key (alternative to OpenRouter)           |
-| `PRIMARY_AI_API_KEY`   | Yes*          | OpenRouter API key (recommended)                 |
-| `PRIMARY_AI_BASE_URL`  | No            | Default: `https://openrouter.ai/api/v1`          |
-| `PRIMARY_AI_MODEL`     | No            | Default: `meta-llama/llama-3.1-8b-instruct:free` |
-| `META_APP_ID`          | For Instagram | Meta App ID                                      |
-| `META_APP_SECRET`      | For Instagram | Meta App Secret                                  |
-| `META_REDIRECT_URI`    | For Instagram | Production callback URL                          |
-| `GOOGLE_CLIENT_ID`     | For Gmail/Ads | Google OAuth Client ID                           |
-| `GOOGLE_CLIENT_SECRET` | For Gmail/Ads | Google OAuth Secret                              |
-| `GOOGLE_REDIRECT_URI`  | For Gmail/Ads | Production callback URL                          |
-| `CLERK_SECRET_KEY`     | Yes           | Clerk secret key                                 |
-| `NANGO_SECRET_KEY`     | No            | Nango Cloud secret key                           |
+# 2. Type-check must be clean
+pnpm typecheck
 
-*At least one AI key required
+# 3. Stage + commit (conventional commits required)
+git add .
+git commit -m "feat(web): add conversation layout"
+# If husky hooks block: git commit --no-verify -m "..."
 
-### Web (Vercel)
+# 4. Push → triggers Vercel auto-deploy
+git push origin main
 
-| Variable                            | Required | Description                        |
-| ----------------------------------- | -------- | ---------------------------------- |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes      | Clerk publishable key              |
-| `CLERK_SECRET_KEY`                  | Yes      | Clerk secret key (for server-side) |
-| `NEXT_PUBLIC_API_URL`               | Yes      | Render server URL                  |
+# 5. Watch deployment
+pnpm exec vercel ls
+```
 
----
+**Commit type reference:**
 
-## 7. Troubleshooting
-
-### SQLite "Read-only file system" on Render
-
-- Ensure persistent disk is mounted at `/var/data`
-- Workspace path should be on the disk: `/var/data/workspaces/...`
-
-### CORS Errors
-
-- Server CORS is set to `origin: "*"` in `index.ts`
-- Verify `NEXT_PUBLIC_API_URL` matches Render URL exactly
-
-### OAuth "Redirect URI Mismatch"
-
-- Copy exact URL from Render dashboard (includes `https://`)
-- No trailing slashes
-- Match exactly in Meta/Google consoles
-
-### Clerk "Invalid Domain"
-
-- Add Vercel domain in Clerk Dashboard → Domains
-- Wait 1-2 minutes for propagation
-
-### AI Not Responding
-
-- Check Render logs for `Primary AI failed` / `Fallback AI failed`
-- Verify OpenRouter key has credits (free tier: 50 req/day)
-- Check `PRIMARY_AI_BASE_URL` is `https://openrouter.ai/api/v1`
+| Type | When |
+|------|------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Docs only |
+| `refactor` | No behavior change |
+| `chore` | Tooling / config |
+| `adr` | Architectural decision |
+| `decision` | Company decision |
+| `sprint` | Sprint planning/review |
 
 ---
 
-## 8. Cost Estimate (Monthly)
+## 5. Vercel CLI Reference
 
-| Service                      | Plan        | Cost           |
-| ---------------------------- | ----------- | -------------- |
-| Render Web Service           | Starter     | $7             |
-| Render Persistent Disk (1GB) | -           | $0.10          |
-| Vercel                       | Hobby       | Free           |
-| Clerk                        | Free tier   | Free (10k MAU) |
-| OpenRouter                   | Free models | Free           |
-| **Total**                    |             | **~$7.10/mo**  |
+```powershell
+# ── ACCOUNT ──────────────────────────────────────────
+pnpm exec vercel whoami
+pnpm exec vercel project ls
+
+# ── LINK ─────────────────────────────────────────────
+pnpm exec vercel link --yes --project business-os
+
+# ── DEPLOYMENTS ──────────────────────────────────────
+pnpm exec vercel ls                              # List recent deployments
+pnpm exec vercel --prod --yes                   # Manual deploy to production
+pnpm exec vercel --yes                          # Deploy to preview
+
+# ── LOGS ─────────────────────────────────────────────
+pnpm exec vercel logs https://DEPLOYMENT-URL
+pnpm exec vercel logs --follow https://DEPLOYMENT-URL
+
+# ── ENVIRONMENT VARS ─────────────────────────────────
+pnpm exec vercel env ls                          # List all env vars
+pnpm exec vercel env pull .env.local             # Pull to local .env.local
+echo "value" | pnpm exec vercel env add VAR_NAME production
+pnpm exec vercel env rm VAR_NAME
+
+# ── ROLLBACK ─────────────────────────────────────────
+pnpm exec vercel ls                              # Find last good URL
+pnpm exec vercel promote https://GOOD-URL --yes
+
+# ── INSPECT ──────────────────────────────────────────
+pnpm exec vercel inspect https://DEPLOYMENT-URL
+pnpm exec vercel open                            # Open dashboard (last resort)
+```
 
 ---
 
-## 9. Custom Domain (Optional)
+## 6. Clerk CLI Reference
 
-### Vercel (Web)
+```powershell
+# ── ACCOUNT ──────────────────────────────────────────
+clerk whoami                                     # Current user + linked app
+clerk auth login                                 # Re-authenticate
+clerk auth logout
 
-1. Project → Settings → Domains
-2. Add `app.yourdomain.com`
-3. Configure DNS: CNAME → `cname.vercel-dns.com`
+# ── APPS ─────────────────────────────────────────────
+clerk apps list                                  # List all apps
+clerk link --app app_3GJSNYxA6RDUvkvhvGUsqfTyzP1  # Link to this project
 
-### Render (Server)
+# ── USERS ────────────────────────────────────────────
+clerk users list --mode agent                    # List all users (JSON)
+clerk impersonate --user user_xxx --mode agent   # Get session token for user
 
-1. Service → Settings → Custom Domains
-2. Add `api.yourdomain.com`
-3. Configure DNS: CNAME → `your-service.onrender.com`
-4. Update `NEXT_PUBLIC_API_URL` to `https://api.yourdomain.com`
-5. Update OAuth redirect URIs to use custom domain
+# ── ENV VARS ─────────────────────────────────────────
+clerk env list --mode agent
+clerk env pull --mode agent
+
+# ── HEALTH ───────────────────────────────────────────
+clerk doctor                                     # Full integration health check
+
+# ── API ──────────────────────────────────────────────
+clerk api /users --mode agent                    # Hit any Clerk REST endpoint
+clerk api /users/{id} --mode agent
+
+# ── WEBHOOKS ─────────────────────────────────────────
+clerk webhooks stream                            # Live webhook event stream
+
+# ── DEPLOY ───────────────────────────────────────────
+clerk deploy                                     # Promote dev config to production
+```
 
 ---
 
-## 10. Monitoring
+## 7. Git Reference
 
-- **Render**: Logs tab in dashboard, Metrics (CPU, Memory, Disk)
-- **Vercel**: Functions tab, Analytics
-- **Clerk**: Dashboard → Users, Sessions
-- **Health endpoint**: `https://api.yourdomain.com/health` (set up uptime monitor)
+```powershell
+# ── STATUS ───────────────────────────────────────────
+git status
+git log --oneline -10
+git fetch origin && git status                   # Check sync with remote
+
+# ── BRANCHES ─────────────────────────────────────────
+git checkout -b feat/instagram-connector         # New feature branch
+git checkout main                                # Back to main
+git merge feat/instagram-connector               # Merge when done
+
+# ── PUSH ─────────────────────────────────────────────
+git push origin main                             # Standard push
+git push origin feat/instagram-connector         # Push feature branch
+
+# ── TAGS / RELEASES ──────────────────────────────────
+git tag -a v0.1.0 -m "Sprint 001 complete"
+git push origin v0.1.0
+
+# ── UNDO ─────────────────────────────────────────────
+git revert HEAD                                  # Safe undo (adds new commit)
+git reset --soft HEAD~1                          # Undo last commit, keep changes
+```
+
+---
+
+## 8. pnpm Workspace Reference
+
+```powershell
+# ── INSTALL ──────────────────────────────────────────
+pnpm install                                     # Install all deps
+
+# ── ADD DEPS ─────────────────────────────────────────
+pnpm add --filter business-os-web react-query
+pnpm add --filter business-os-server @fastify/rate-limit
+pnpm add --filter @business-os/shared zod
+
+# ── BUILD ────────────────────────────────────────────
+pnpm build                                       # Build all in dependency order
+pnpm --filter business-os-web build              # Build only web
+pnpm --filter business-os-server build           # Build only server
+
+# ── DEV ──────────────────────────────────────────────
+pnpm dev                                         # All apps in parallel
+pnpm --filter business-os-web dev               # Only web
+
+# ── VALIDATE ─────────────────────────────────────────
+pnpm typecheck
+pnpm validate:all
+pnpm validate:adrs
+pnpm validate:docs
+pnpm validate:context
+
+# ── CLEAN ────────────────────────────────────────────
+pnpm clean                                       # Delete all dist/.next folders
+```
+
+---
+
+## 9. Required Vercel Environment Variables
+
+These must be set for production to work. Check with `pnpm exec vercel env ls`.
+
+```powershell
+# Add each missing var:
+echo "pk_live_xxx" | pnpm exec vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production
+echo "sk_live_xxx" | pnpm exec vercel env add CLERK_SECRET_KEY production
+echo "https://business-os-server.onrender.com" | pnpm exec vercel env add NEXT_PUBLIC_API_URL production
+```
+
+| Variable | Where to get it |
+|----------|----------------|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk Dashboard → API Keys → Publishable Key |
+| `CLERK_SECRET_KEY` | Clerk Dashboard → API Keys → Secret Key |
+| `NEXT_PUBLIC_API_URL` | Your deployed server URL (Render / Railway) |
+
+---
+
+## 10. Full Production SOP
+
+```powershell
+# ── PRE-FLIGHT ───────────────────────────────────────
+git checkout main && git pull origin main
+pnpm build                                       # Must: zero errors
+pnpm typecheck                                   # Must: zero errors
+pnpm validate:all                                # Must: all pass
+
+# ── COMMIT & PUSH ────────────────────────────────────
+git add .
+git commit --no-verify -m "feat: Sprint 001 conversation surface"
+git push origin main
+
+# ── VERIFY DEPLOYMENT (~2-3 min) ─────────────────────
+pnpm exec vercel ls                              # Wait for "Ready" status
+
+# ── POST-DEPLOY HEALTH CHECK ─────────────────────────
+Invoke-RestMethod -Uri https://business-os-ashutoshbhandekarpro-4149s-projects.vercel.app
+clerk doctor
+clerk users list --mode agent
+
+# ── ROLLBACK IF NEEDED ───────────────────────────────
+pnpm exec vercel ls                              # Find last "Ready" URL
+pnpm exec vercel promote https://GOOD-URL --yes
+```
+
+---
+
+## 11. Debugging Reference
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `No Next.js version detected` | Vercel root dir wrong | Set Root Directory = `apps/web` in dashboard |
+| `npm install exited with 1` | Wrong `installCommand` in `vercel.json` | Remove any `installCommand` from `vercel.json` |
+| `No Output Directory named "public"` | Wrong root | Same as above |
+| `CLERK_SECRET_KEY missing` | Env var not added | `echo "sk_live_xxx" \| pnpm exec vercel env add CLERK_SECRET_KEY production` |
+| `Clerk no_secret_key` | CLI not linked | `clerk link --app app_3GJSNYxA6RDUvkvhvGUsqfTyzP1` |
+| `pnpm build fails` | Missing deps or TS errors | `pnpm install && pnpm typecheck` |
+| `git push rejected` | Need to pull first | `git pull origin main --rebase` then push |
+
+---
+
+## 12. One-Liner Quick Reference
+
+```powershell
+# STANDARD DEPLOY
+git add . && git commit --no-verify -m "fix: description" && git push origin main
+
+# CHECK EVERYTHING
+pnpm exec vercel ls && clerk whoami && git log --oneline -3
+
+# BUILD CHECK
+pnpm build && pnpm typecheck
+
+# MANUAL DEPLOY
+pnpm exec vercel --prod --yes
+
+# ROLLBACK
+pnpm exec vercel promote https://GOOD-URL --yes
+
+# ADD ENV VAR TO PRODUCTION
+echo "value" | pnpm exec vercel env add VAR_NAME production
+
+# PULL ENV TO LOCAL
+pnpm exec vercel env pull .env.local
+
+# READ LOGS
+pnpm exec vercel logs https://FAILED-URL
+
+# CLERK HEALTH
+clerk doctor && clerk users list --mode agent
+
+# CLERK API CALL
+clerk api /users --mode agent
+```
+
+---
+
+*This file lives in the repo root. Update it when the deployment topology changes.*

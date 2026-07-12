@@ -1,0 +1,7 @@
+{
+  "name": "businessos-web",
+  "framework": "nextjs",
+  "buildCommand": "pnpm --filter business-os-web build",
+  "installCommand": "pnpm install",
+  "outputDirectory": "apps/web/.next"
+}

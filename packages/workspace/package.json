@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "clean": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true });\""
+    "clean": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true });\"",
+    "migrate": "node dist/db/migrate.js"
   },
   "dependencies": {
     "@business-os/shared": "workspace:*",
