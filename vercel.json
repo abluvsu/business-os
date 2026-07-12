@@ -1,7 +1,5 @@
 {
-  "name": "businessos-web",
   "framework": "nextjs",
-  "rootDirectory": "apps/web",
   "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
   "buildCommand": "cd ../.. && sh scripts/vercel-build.sh",
   "outputDirectory": ".next",
