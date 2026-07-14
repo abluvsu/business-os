@@ -116,8 +116,26 @@ async function extractCompanyIntelligence(
         response_format: { type: "json_object" },
       });
 
-      const result = JSON.parse(response.choices[0].message.content || "{}");
-      return result as ExtractedCompanyIntel;
+      const parsed = JSON.parse(response.choices[0].message.content || "{}");
+      const result: ExtractedCompanyIntel = {
+        name: parsed.name || "Unknown Company",
+        industry: parsed.industry || "Technology",
+        stage: parsed.stage || "seed",
+        description: parsed.description || "No description available.",
+        valueProposition: parsed.valueProposition || "No value proposition available.",
+        targetAudience: parsed.targetAudience || "General audience.",
+        businessModel: parsed.businessModel || "SaaS",
+        competitorNames: Array.isArray(parsed.competitorNames) ? parsed.competitorNames : [],
+        competitorUrls: Array.isArray(parsed.competitorUrls) ? parsed.competitorUrls : [],
+        healthMetrics: {
+          estimatedMonthlyTraffic: Number(parsed.healthMetrics?.estimatedMonthlyTraffic) || 0,
+          estimatedTeamSize: Number(parsed.healthMetrics?.estimatedTeamSize) || 0,
+          fundingStageScore: Number(parsed.healthMetrics?.fundingStageScore) || 50,
+          marketPositionScore: Number(parsed.healthMetrics?.marketPositionScore) || 50,
+          techSophisticationScore: Number(parsed.healthMetrics?.techSophisticationScore) || 50,
+        }
+      };
+      return result;
     } catch (error) {
       console.warn("AI extraction failed, using heuristic fallback:", error);
     }
