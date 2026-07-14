@@ -33,7 +33,7 @@ const createAIClient = () => {
   };
 };
 
-async function fetchWebsiteContent(url: string): Promise<string> {
+async function fetchWebsiteContent(url: string): Promise<{ html: string; textContent: string }> {
   const MAX_RETRIES = 2;
   const TIMEOUT_MS = 15000;
 
@@ -82,7 +82,7 @@ async function fetchWebsiteContent(url: string): Promise<string> {
         .trim()
         .slice(0, 15000); // Limit to ~15k chars for token efficiency
 
-      return textContent;
+      return { html, textContent };
     } catch (error) {
       const isAbort =
         error instanceof Error && error.name === "AbortError";
@@ -122,9 +122,87 @@ async function fetchWebsiteContent(url: string): Promise<string> {
   throw new Error("Could not fetch website after multiple attempts.");
 }
 
+function calculateSeoHealth(html: string): number {
+  let score = 0;
+  
+  // 1. Title tag presence and length (optimal length: 10-60 chars)
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (titleMatch && titleMatch[1].trim().length > 0) {
+    const titleLen = titleMatch[1].trim().length;
+    score += (titleLen >= 10 && titleLen <= 60) ? 20 : 10;
+  }
+  
+  // 2. Meta description presence and length (optimal length: 50-160 chars)
+  const descMatch = html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([\s\S]*?)["']/i) ||
+                    html.match(/<meta[^>]+content=["']([\s\S]*?)["'][^>]*name=["']description["']/i);
+  if (descMatch && descMatch[1].trim().length > 0) {
+    const descLen = descMatch[1].trim().length;
+    score += (descLen >= 50 && descLen <= 160) ? 20 : 10;
+  }
+  
+  // 3. Viewport tag presence
+  if (/<meta[^>]+name=["']viewport["']/i.test(html)) {
+    score += 15;
+  }
+  
+  // 4. Canonical link tag
+  if (/<link[^>]+rel=["']canonical["']/i.test(html)) {
+    score += 15;
+  }
+  
+  // 5. Structure: Heading tags (presence of H1 and H2)
+  const h1Count = (html.match(/<h1[^>]*>/gi) || []).length;
+  if (h1Count === 1) {
+    score += 15; // Optimal: exactly one H1
+  } else if (h1Count > 1) {
+    score += 8;
+  }
+  
+  if (/<h2[^>]*>/i.test(html)) {
+    score += 15;
+  }
+  
+  return Math.min(score, 100);
+}
+
+function calculateGeoHealth(html: string, textContent: string): number {
+  let score = 0;
+  const lowerContent = textContent.toLowerCase();
+  
+  // 1. Structured Data: JSON-LD presence
+  if (/<script[^>]+type=["']application\/ld\+json["']/i.test(html)) {
+    score += 25;
+  }
+  
+  // 2. Brand Facts / Specifications (AEO-friendly clear listing of specifications)
+  const brandKeywords = ["compatibility", "supports", "operating system", "license", "pricing", "pricing plan", "open source", "mit license"];
+  let brandMatches = 0;
+  brandKeywords.forEach(k => {
+    if (lowerContent.includes(k)) brandMatches++;
+  });
+  score += Math.min(brandMatches * 4, 25);
+  
+  // 3. Q&A / FAQ presence (highly targeted by search/answering engines)
+  const faqKeywords = ["faq", "frequently asked questions", "q&a", "what is", "how do i", "how to", "is it free"];
+  let faqMatches = 0;
+  faqKeywords.forEach(k => {
+    if (lowerContent.includes(k)) faqMatches++;
+  });
+  score += Math.min(faqMatches * 5, 25);
+  
+  // 4. AI Crawler Access rules & sitemaps (standard robot.txt allows crawlers)
+  const robotsIndex = !/content=["']noindex["']/i.test(html);
+  if (robotsIndex) {
+    score += 25;
+  }
+  
+  return Math.min(score, 100);
+}
+
 async function extractCompanyIntelligence(
   websiteContent: string,
   websiteUrl: string,
+  html: string,
 ): Promise<ExtractedCompanyIntel> {
   const ai = createAIClient();
 
@@ -191,6 +269,8 @@ async function extractCompanyIntelligence(
             Number(parsed.healthMetrics?.marketPositionScore) || 50,
           techSophisticationScore:
             Number(parsed.healthMetrics?.techSophisticationScore) || 50,
+          seoHealth: calculateSeoHealth(html),
+          geoHealth: calculateGeoHealth(html, websiteContent),
         },
       };
       return result;
@@ -200,12 +280,13 @@ async function extractCompanyIntelligence(
   }
 
   // Heuristic fallback
-  return heuristicExtraction(websiteContent, websiteUrl);
+  return heuristicExtraction(websiteContent, websiteUrl, html);
 }
 
 function heuristicExtraction(
   content: string,
   url: string,
+  html: string,
 ): ExtractedCompanyIntel {
   const lowerContent = content.toLowerCase();
 
@@ -326,6 +407,8 @@ function heuristicExtraction(
       fundingStageScore: stage === "growth" ? 70 : stage === "seed" ? 40 : 20,
       marketPositionScore: 50,
       techSophisticationScore: 50,
+      seoHealth: calculateSeoHealth(html),
+      geoHealth: calculateGeoHealth(html, content),
     },
   };
 }
@@ -388,9 +471,9 @@ export function registerCompanyRoutes(
 
       try {
         // Fetch website content
-        const websiteContent = await fetchWebsiteContent(website);
+        const { html, textContent } = await fetchWebsiteContent(website);
 
-        if (!websiteContent || websiteContent.length < 100) {
+        if (!textContent || textContent.length < 100) {
           return reply.status(400).send({
             success: false,
             error: "Could not extract meaningful content from website",
@@ -398,7 +481,7 @@ export function registerCompanyRoutes(
         }
 
         // Extract intelligence using AI
-        const intel = await extractCompanyIntelligence(websiteContent, website);
+        const intel = await extractCompanyIntelligence(textContent, website, html);
 
         return { success: true, intel };
       } catch (error: any) {
