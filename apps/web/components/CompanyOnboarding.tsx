@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Globe,
   Sparkles,
   Loader2,
   CheckCircle,
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
   Building2,
   TrendingUp,
   Users,
   Zap,
   Shield,
+  Plus,
+  X,
 } from "lucide-react";
 import { authenticatedFetch } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
@@ -48,6 +51,7 @@ export function CompanyOnboarding({
   const [intel, setIntel] = useState<CompanyProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const handleAnalyzeWebsite = async () => {
     if (!name.trim()) {
@@ -70,12 +74,17 @@ export function CompanyOnboarding({
           companyName: name,
         });
 
+        let targetWebsite = website.trim();
+        if (!/^https?:\/\//i.test(targetWebsite)) {
+          targetWebsite = `https://${targetWebsite}`;
+        }
+
         const res = await authenticatedFetch(
           `${apiBase}/api/company/analyze-website`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ website: website.trim() }),
+            body: JSON.stringify({ website: targetWebsite }),
           },
         );
 
@@ -99,6 +108,24 @@ export function CompanyOnboarding({
           companyName: name,
           industry: data.intel.industry,
         });
+      } else {
+        intelData.industry = "Technology";
+        intelData.stage = "seed";
+        intelData.businessModel = "SaaS";
+        intelData.description = `${name.trim()} operates in the technology sector.`;
+        intelData.valueProposition = "Providing innovative software solutions.";
+        intelData.targetAudience = "Businesses and developers.";
+        intelData.competitorNames = [];
+        intelData.competitorUrls = [];
+        intelData.healthMetrics = {
+          estimatedMonthlyTraffic: 0,
+          estimatedTeamSize: 1,
+          fundingStageScore: 20,
+          marketPositionScore: 50,
+          techSophisticationScore: 50,
+          seoHealth: 0,
+          geoHealth: 0,
+        };
       }
 
       setIntel(intelData as CompanyProfile);
@@ -112,15 +139,23 @@ export function CompanyOnboarding({
       setIntel({
         name: name.trim(),
         website: website.trim() || null,
-        industry: null,
-        stage: null,
-        description: null,
-        valueProposition: null,
-        targetAudience: null,
-        businessModel: null,
+        industry: "Technology",
+        stage: "seed",
+        description: "",
+        valueProposition: "",
+        targetAudience: "",
+        businessModel: "SaaS",
         competitorNames: [],
         competitorUrls: [],
-        healthMetrics: {},
+        healthMetrics: {
+          estimatedMonthlyTraffic: 0,
+          estimatedTeamSize: 1,
+          fundingStageScore: 20,
+          marketPositionScore: 50,
+          techSophisticationScore: 50,
+          seoHealth: 0,
+          geoHealth: 0,
+        },
       });
       setStep("review");
     } finally {
@@ -130,7 +165,8 @@ export function CompanyOnboarding({
 
   const handleSave = async () => {
     if (!intel) return;
-
+    setSaving(true);
+    setError(null);
     try {
       const res = await authenticatedFetch(`${apiBase}/api/company/profile`, {
         method: "POST",
@@ -150,54 +186,34 @@ export function CompanyOnboarding({
       onComplete(intel);
     } catch (err: any) {
       setError(err.message || "Failed to save profile");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleSkip = () => {
     const basicProfile: CompanyProfile = {
-      name: name.trim(),
+      name: name.trim() || "My Company",
       website: website.trim() || null,
-      industry: null,
-      stage: null,
+      industry: "Technology",
+      stage: "seed",
       description: null,
       valueProposition: null,
       targetAudience: null,
-      businessModel: null,
+      businessModel: "SaaS",
       competitorNames: [],
       competitorUrls: [],
-      healthMetrics: {},
+      healthMetrics: {
+        estimatedMonthlyTraffic: 0,
+        estimatedTeamSize: 1,
+        fundingStageScore: 20,
+        marketPositionScore: 50,
+        techSophisticationScore: 50,
+        seoHealth: 0,
+        geoHealth: 0,
+      },
     };
     onComplete(basicProfile);
-  };
-
-  const getStageColor = (stage: string | null) => {
-    switch (stage?.toLowerCase()) {
-      case "pre-seed":
-        return "text-yellow-400 bg-yellow-400/10";
-      case "seed":
-        return "text-green-400 bg-green-400/10";
-      case "growth":
-        return "text-blue-400 bg-blue-400/10";
-      case "scale":
-        return "text-purple-400 bg-purple-400/10";
-      default:
-        return "text-neutral-400 bg-neutral-400/10";
-    }
-  };
-
-  const getStageIcon = (stage: string | null) => {
-    switch (stage?.toLowerCase()) {
-      case "pre-seed":
-        return <Sparkles className="h-3 w-3" />;
-      case "seed":
-        return <Zap className="h-3 w-3" />;
-      case "growth":
-        return <TrendingUp className="h-3 w-3" />;
-      case "scale":
-        return <Building2 className="h-3 w-3" />;
-      default:
-        return <Building2 className="h-3 w-3" />;
-    }
   };
 
   if (step === "complete") return null;
@@ -275,7 +291,7 @@ export function CompanyOnboarding({
                 <div className="relative">
                   <Globe className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-500" />
                   <input
-                    type="url"
+                    type="text"
                     placeholder="https://yourcompany.com"
                     value={website}
                     onChange={(e) => setWebsite(e.target.value)}
@@ -294,7 +310,7 @@ export function CompanyOnboarding({
               disabled={!name.trim()}
               className="w-full flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Sparkles className="h-4 w-4" />
+              <Sparkles className="h-4 w-4 text-purple-600 animate-pulse" />
               <span>Analyze & Continue</span>
               <ArrowRight className="h-4 w-4" />
             </button>
@@ -333,171 +349,245 @@ export function CompanyOnboarding({
         {/* Step 3: Review */}
         {step === "review" && intel && (
           <div className="bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl space-y-6">
-            <h3 className="text-lg font-bold text-white text-center">
-              Review your company profile
-            </h3>
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <button
+                onClick={() => setStep("input")}
+                className="flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-300 transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Re-enter URL</span>
+              </button>
+              <h3 className="text-lg font-bold text-white pr-10">
+                Review & Edit Profile
+              </h3>
+              <div />
+            </div>
 
             {/* Basic Info */}
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="bg-black/30 border border-white/5 p-4 rounded-xl">
-                <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
+              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
                   Company Name
                 </label>
-                <p className="text-white font-medium">{intel.name}</p>
+                <input
+                  type="text"
+                  value={intel.name}
+                  onChange={(e) => setIntel({ ...intel, name: e.target.value })}
+                  className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white font-medium focus:outline-none transition-colors py-0.5 text-sm"
+                />
               </div>
-              {intel.website && (
-                <div className="bg-black/30 border border-white/5 p-4 rounded-xl">
-                  <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
-                    Website
-                  </label>
-                  <a
-                    href={intel.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 text-sm font-mono flex items-center gap-1"
-                  >
-                    <Globe className="h-3 w-3" />
-                    {intel.website}
-                  </a>
-                </div>
-              )}
+              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                  Website URL
+                </label>
+                <input
+                  type="url"
+                  value={intel.website || ""}
+                  onChange={(e) => setIntel({ ...intel, website: e.target.value || null })}
+                  className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-blue-400 font-mono text-sm focus:outline-none transition-colors py-0.5"
+                  placeholder="https://yourcompany.com"
+                />
+              </div>
             </div>
 
             {/* AI Extracted Info */}
-            {(intel.industry || intel.stage || intel.businessModel) && (
-              <div className="space-y-4 border-t border-white/5 pt-4">
-                <h4 className="text-xs font-medium text-neutral-500 uppercase tracking-wider flex items-center gap-2">
-                  <Sparkles className="h-3 w-3 text-yellow-400" />
-                  AI-Extracted Intelligence
-                </h4>
-                <div className="grid gap-3 md:grid-cols-3">
-                  {intel.industry && (
-                    <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
-                        Industry
-                      </label>
-                      <p className="text-white text-sm">{intel.industry}</p>
-                    </div>
-                  )}
-                  {intel.stage && (
-                    <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
-                        Stage
-                      </label>
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-mono ${getStageColor(intel.stage)}`}
-                      >
-                        {getStageIcon(intel.stage)}
-                        {intel.stage}
-                      </span>
-                    </div>
-                  )}
-                  {intel.businessModel && (
-                    <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
-                        Business Model
-                      </label>
-                      <p className="text-white text-sm capitalize">
-                        {intel.businessModel.toLowerCase()}
-                      </p>
-                    </div>
-                  )}
+            <div className="space-y-4 border-t border-white/5 pt-4">
+              <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="h-3 w-3 text-purple-400" />
+                Company Intelligence Details
+              </h4>
+              
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                    Industry
+                  </label>
+                  <input
+                    type="text"
+                    value={intel.industry || ""}
+                    onChange={(e) => setIntel({ ...intel, industry: e.target.value || null })}
+                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
+                    placeholder="e.g. SaaS"
+                  />
+                </div>
+                
+                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                    Stage
+                  </label>
+                  <select
+                    value={intel.stage || "seed"}
+                    onChange={(e) => setIntel({ ...intel, stage: e.target.value })}
+                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
+                  >
+                    <option value="pre-seed" className="bg-[#0c0c0e] text-white">Pre-Seed</option>
+                    <option value="seed" className="bg-[#0c0c0e] text-white">Seed</option>
+                    <option value="growth" className="bg-[#0c0c0e] text-white">Growth</option>
+                    <option value="scale" className="bg-[#0c0c0e] text-white">Scale</option>
+                    <option value="mature" className="bg-[#0c0c0e] text-white">Mature</option>
+                  </select>
                 </div>
 
-                {(intel.valueProposition || intel.targetAudience) && (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {intel.valueProposition && (
-                      <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
-                          Value Proposition
-                        </label>
-                        <p className="text-white text-sm">
-                          {intel.valueProposition}
-                        </p>
-                      </div>
-                    )}
-                    {intel.targetAudience && (
-                      <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1">
-                          Target Audience
-                        </label>
-                        <p className="text-white text-sm">
-                          {intel.targetAudience}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {intel.competitorNames && intel.competitorNames.length > 0 && (
-                  <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                    <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      Detected Competitors
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {intel.competitorNames.slice(0, 5).map((comp, i) => (
-                        <span
-                          key={i}
-                          className="bg-neutral-800 border border-white/10 text-neutral-300 text-xs px-2 py-1 rounded"
-                        >
-                          {comp}
-                        </span>
-                      ))}
-                      {intel.competitorNames.length > 5 && (
-                        <span className="text-neutral-500 text-xs">
-                          +{intel.competitorNames.length - 5} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {intel.healthMetrics &&
-                  Object.keys(intel.healthMetrics).length > 0 && (
-                    <div className="bg-black/30 border border-white/5 p-3 rounded-xl">
-                      <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                        <TrendingUp className="h-3 w-3" />
-                        Health Metrics (Estimated)
-                      </label>
-                      <div className="grid gap-2 md:grid-cols-3">
-                        {Object.entries(intel.healthMetrics).map(
-                          ([key, value]) => (
-                            <div
-                              key={key}
-                              className="text-center p-2 bg-black/20 rounded-lg"
-                            >
-                              <p className="text-2xl font-bold text-white">
-                                {typeof value === "number"
-                                  ? value.toFixed(0)
-                                  : value}
-                              </p>
-                              <p className="text-xs text-neutral-500 capitalize">
-                                {key.replace(/([A-Z])/g, " $1").trim()}
-                              </p>
-                            </div>
-                          ),
-                        )}
-                      </div>
-                    </div>
-                  )}
+                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                    Business Model
+                  </label>
+                  <select
+                    value={intel.businessModel || "SaaS"}
+                    onChange={(e) => setIntel({ ...intel, businessModel: e.target.value })}
+                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
+                  >
+                    <option value="SaaS" className="bg-[#0c0c0e] text-white">SaaS</option>
+                    <option value="E-commerce" className="bg-[#0c0c0e] text-white">E-commerce</option>
+                    <option value="Marketplace" className="bg-[#0c0c0e] text-white">Marketplace</option>
+                    <option value="Services" className="bg-[#0c0c0e] text-white">Services</option>
+                    <option value="Freemium" className="bg-[#0c0c0e] text-white">Freemium</option>
+                    <option value="Enterprise" className="bg-[#0c0c0e] text-white">Enterprise</option>
+                  </select>
+                </div>
               </div>
-            )}
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                    Value Proposition
+                  </label>
+                  <input
+                    type="text"
+                    value={intel.valueProposition || ""}
+                    onChange={(e) => setIntel({ ...intel, valueProposition: e.target.value || null })}
+                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
+                    placeholder="Describe core value prop..."
+                  />
+                </div>
+                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                    Target Audience (ICP)
+                  </label>
+                  <input
+                    type="text"
+                    value={intel.targetAudience || ""}
+                    onChange={(e) => setIntel({ ...intel, targetAudience: e.target.value || null })}
+                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
+                    placeholder="Describe ICP/audience..."
+                  />
+                </div>
+              </div>
+
+              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
+                <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                  Company Description
+                </label>
+                <textarea
+                  value={intel.description || ""}
+                  onChange={(e) => setIntel({ ...intel, description: e.target.value || null })}
+                  rows={2}
+                  className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5 resize-none"
+                  placeholder="2-3 sentence description..."
+                />
+              </div>
+
+              {/* Competitors Tag Manager */}
+              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-2">
+                <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+                  <Users className="h-3 w-3 text-neutral-400" />
+                  Competitor Names
+                </label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {(intel.competitorNames || []).map((comp, i) => (
+                    <span
+                      key={i}
+                      className="bg-neutral-900 border border-white/10 text-neutral-300 text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5"
+                    >
+                      <span>{comp}</span>
+                      <button
+                        onClick={() => {
+                          const updated = (intel.competitorNames || []).filter((_, index) => index !== i);
+                          setIntel({ ...intel, competitorNames: updated });
+                        }}
+                        className="text-neutral-500 hover:text-neutral-300 transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <div className="flex items-center gap-1 bg-black/20 border border-white/10 rounded-lg px-2.5 py-1">
+                    <input
+                      type="text"
+                      placeholder="Add competitor..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const val = e.currentTarget.value.trim();
+                          if (val && !(intel.competitorNames || []).includes(val)) {
+                            setIntel({
+                              ...intel,
+                              competitorNames: [...(intel.competitorNames || []), val],
+                            });
+                            e.currentTarget.value = "";
+                          }
+                        }
+                      }}
+                      className="bg-transparent border-none text-xs text-white placeholder-neutral-600 focus:outline-none w-28"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Health Metrics */}
+              {intel.healthMetrics && Object.keys(intel.healthMetrics).length > 0 && (
+                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-2">
+                  <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3 text-neutral-400" />
+                    Metrics & Audit Scores
+                  </label>
+                  <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+                    {Object.entries(intel.healthMetrics).map(([key, value]) => (
+                      <div key={key} className="p-2 bg-black/20 rounded-lg border border-white/5 space-y-1">
+                        <span className="text-[9px] text-neutral-500 uppercase tracking-wider block truncate">
+                          {key.replace(/([A-Z])/g, " $1").trim()}
+                        </span>
+                        <input
+                          type="number"
+                          value={value}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setIntel({
+                              ...intel,
+                              healthMetrics: {
+                                ...intel.healthMetrics,
+                                [key]: val,
+                              },
+                            });
+                          }}
+                          className="w-full bg-transparent text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-white/20 pb-0.5"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Actions */}
             <div className="flex gap-3 pt-4 border-t border-white/5">
               <button
                 onClick={handleSave}
-                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all"
+                disabled={saving}
+                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
               >
-                <CheckCircle className="h-4 w-4" />
-                <span>Save & Continue</span>
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-black" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 text-black" />
+                )}
+                <span>{saving ? "Saving..." : "Save & Continue"}</span>
               </button>
               <button
                 onClick={handleSkip}
                 className="flex-1 flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-sm font-semibold py-3 rounded-xl transition-all border border-white/10"
               >
-                <Shield className="h-4 w-4" />
+                <Shield className="h-4 w-4 text-neutral-400" />
                 <span>Skip for now</span>
               </button>
             </div>

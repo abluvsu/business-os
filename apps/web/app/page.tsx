@@ -14,6 +14,10 @@ import {
   PieChart,
   Mail,
   TrendingUp,
+  X,
+  Sparkles,
+  Shield,
+  Play,
 } from "lucide-react";
 import ConversationArea from "../components/conversation-area";
 import VisualizationPanel, {
@@ -90,6 +94,7 @@ export default function Home() {
   );
   const [companyProfileChecked, setCompanyProfileChecked] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // ECharts States
   const [activeChart, setActiveChart] = useState<ChartConfig | null>(null);
@@ -257,26 +262,141 @@ export default function Home() {
   // Guard dashboard screens if Clerk is active
   if (hasClerk && isLoaded && !isSignedIn) {
     return (
-      <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center p-6 text-neutral-200">
-        <div className="w-full max-w-md space-y-12">
-          <div className="text-center space-y-4">
-            <div className="h-16 w-16 bg-white/5 border border-white/10 rounded-2xl mx-auto flex items-center justify-center">
-              <Database className="h-8 w-8 text-white" />
+      <div className="min-h-screen bg-[#070709] text-neutral-200 font-sans selection:bg-purple-500/35 flex flex-col">
+        {/* Glowing Background Gradients */}
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none -z-10" />
+        <div className="absolute top-1/3 right-1/4 w-[400px] h-[400px] bg-blue-600/10 rounded-full blur-[100px] pointer-events-none -z-10" />
+
+        {/* Header Navigation */}
+        <header className="w-full max-w-7xl mx-auto h-20 px-6 md:px-12 flex items-center justify-between z-10">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center shadow-lg">
+              <Database className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-b from-white to-neutral-400 bg-clip-text text-transparent tracking-tight">
-                BusinessOS
-              </h1>
-              <p className="text-sm text-neutral-400 mt-2">
-                Your private multi-tenant business analyst. Connect your
-                integrations, ask questions, get insights.
+            <span className="font-bold text-lg tracking-tight text-white">
+              BusinessOS
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsAuthOpen(true)}
+              className="text-sm font-medium text-neutral-400 hover:text-white transition-colors"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => setIsAuthOpen(true)}
+              className="bg-white hover:bg-neutral-200 text-black text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-white/10"
+            >
+              Get Started
+            </button>
+          </div>
+        </header>
+
+        {/* Hero Section */}
+        <main className="flex-1 flex flex-col justify-center items-center px-6 text-center max-w-4xl mx-auto space-y-12 py-16">
+          <div className="space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400 font-mono">
+              <Sparkles className="h-3 w-3 text-purple-400 animate-pulse" />
+              <span>Next-Gen Enterprise Analytics Suite</span>
+            </div>
+            
+            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-tight bg-gradient-to-b from-white via-neutral-100 to-neutral-500 bg-clip-text text-transparent">
+              Your Private, AI-Powered <br />
+              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+                Business Analyst.
+              </span>
+            </h1>
+            
+            <p className="text-base md:text-lg text-neutral-400 max-w-2xl mx-auto font-normal">
+              BusinessOS aggregates your social metrics, email pipelines, and ad accounts into a secure, multi-tenant workspace to unlock instant, natural-language insights.
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full">
+            <button
+              onClick={() => setIsAuthOpen(true)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold px-8 py-3.5 rounded-xl transition-all shadow-xl hover:shadow-white/10"
+            >
+              <span>Launch BusinessOS</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setIsAuthOpen(true)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 text-sm font-semibold px-8 py-3.5 rounded-xl transition-all"
+            >
+              <Play className="h-3.5 w-3.5 fill-white" />
+              <span>Watch Demo</span>
+            </button>
+          </div>
+
+          {/* Feature Highlight Cards */}
+          <div className="grid gap-6 md:grid-cols-3 w-full pt-12">
+            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl text-left space-y-4 hover:border-white/10 transition-colors">
+              <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                <BarChart3 className="h-5 w-5 text-purple-400" />
+              </div>
+              <h3 className="text-sm font-bold text-white">AI Data Analytics</h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Connect your database tables, query in plain English, and dynamically generate charts.
+              </p>
+            </div>
+
+            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl text-left space-y-4 hover:border-white/10 transition-colors">
+              <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <Settings className="h-5 w-5 text-blue-400" />
+              </div>
+              <h3 className="text-sm font-bold text-white">Multi-Pipe Syncing</h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Sync Instagram engagement, Gmail communications, and Google Ads metrics in real-time.
+              </p>
+            </div>
+
+            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl text-left space-y-4 hover:border-white/10 transition-colors">
+              <div className="h-10 w-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
+                <Shield className="h-5 w-5 text-pink-400" />
+              </div>
+              <h3 className="text-sm font-bold text-white">SEO & GEO Auditing</h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Audit your site’s search accessibility and Generative Engine Optimization health on startup.
               </p>
             </div>
           </div>
-          <div className="flex justify-center bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl">
-            <SignIn routing="hash" />
+        </main>
+
+        {/* Footer */}
+        <footer className="w-full h-16 border-t border-white/5 flex items-center justify-center text-xs text-neutral-600">
+          <span>&copy; {new Date().getFullYear()} BusinessOS. All rights reserved.</span>
+        </footer>
+
+        {/* Authentication Modal */}
+        {isAuthOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              onClick={() => setIsAuthOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md transition-opacity"
+            />
+            {/* Modal Content */}
+            <div className="relative w-full max-w-md bg-[#0c0c0e] border border-white/10 rounded-2xl p-6 shadow-2xl space-y-6 z-10 animate-in fade-in zoom-in duration-200">
+              <button
+                onClick={() => setIsAuthOpen(false)}
+                className="absolute right-4 top-4 text-neutral-500 hover:text-neutral-300 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="text-center space-y-2">
+                <Database className="h-8 w-8 text-white mx-auto" />
+                <h3 className="text-lg font-bold text-white">Welcome to BusinessOS</h3>
+                <p className="text-xs text-neutral-400">Sign in to your multi-tenant business analyst workspace</p>
+              </div>
+              <div className="flex justify-center bg-black/30 border border-white/5 p-4 rounded-xl">
+                <SignIn routing="hash" />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }

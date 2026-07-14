@@ -1,10 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import {
   WorkspaceManager,
   businessEntities,
   observations,
+  workspaces,
 } from "@business-os/workspace";
 
 export function registerWorkspaceRoutes(
@@ -37,6 +39,38 @@ export function registerWorkspaceRoutes(
       },
     },
     async (request, reply) => {
+      const tenantContext = (request as any).tenantContext;
+      const workspaceId = tenantContext?.activeWorkspaceId;
+      const db = manager.db;
+
+      if (workspaceId && db) {
+        try {
+          const workspaceRows = await db
+            .select()
+            .from(workspaces)
+            .where(eq(workspaces.id, workspaceId))
+            .limit(1);
+
+          if (workspaceRows.length > 0) {
+            const ws = workspaceRows[0];
+            return {
+              active: true,
+              workspace: {
+                path: `/workspaces/${ws.id}`,
+                name: ws.name || "Default Workspace",
+                version: 1,
+                owner: "Founder",
+                databasePath: "",
+                schemaVersion: "0.0.1",
+                status: "active",
+              },
+            };
+          }
+        } catch (err) {
+          fastify.log.error(err as any, "Failed to fetch workspace from db");
+        }
+      }
+
       const ws = manager.active();
       return {
         active: !!ws,

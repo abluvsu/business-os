@@ -40,10 +40,9 @@ const contextPlugin: FastifyPluginAsync<ContextPluginOptions> = async (fastify, 
   }
 
   fastify.addHook("preHandler", async (request, reply) => {
-    // 1. Skip checks for non-API, health checks, or workspace administration actions
+    // 1. Skip checks for non-API, health checks, or events
     if (
       !request.url.startsWith("/api/") ||
-      request.url.startsWith("/api/workspace/") ||
       request.url === "/api/events"
     ) {
       return;
