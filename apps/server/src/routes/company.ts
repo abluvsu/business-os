@@ -122,18 +122,28 @@ async function extractCompanyIntelligence(
         industry: parsed.industry || "Technology",
         stage: parsed.stage || "seed",
         description: parsed.description || "No description available.",
-        valueProposition: parsed.valueProposition || "No value proposition available.",
+        valueProposition:
+          parsed.valueProposition || "No value proposition available.",
         targetAudience: parsed.targetAudience || "General audience.",
         businessModel: parsed.businessModel || "SaaS",
-        competitorNames: Array.isArray(parsed.competitorNames) ? parsed.competitorNames : [],
-        competitorUrls: Array.isArray(parsed.competitorUrls) ? parsed.competitorUrls : [],
+        competitorNames: Array.isArray(parsed.competitorNames)
+          ? parsed.competitorNames
+          : [],
+        competitorUrls: Array.isArray(parsed.competitorUrls)
+          ? parsed.competitorUrls
+          : [],
         healthMetrics: {
-          estimatedMonthlyTraffic: Number(parsed.healthMetrics?.estimatedMonthlyTraffic) || 0,
-          estimatedTeamSize: Number(parsed.healthMetrics?.estimatedTeamSize) || 0,
-          fundingStageScore: Number(parsed.healthMetrics?.fundingStageScore) || 50,
-          marketPositionScore: Number(parsed.healthMetrics?.marketPositionScore) || 50,
-          techSophisticationScore: Number(parsed.healthMetrics?.techSophisticationScore) || 50,
-        }
+          estimatedMonthlyTraffic:
+            Number(parsed.healthMetrics?.estimatedMonthlyTraffic) || 0,
+          estimatedTeamSize:
+            Number(parsed.healthMetrics?.estimatedTeamSize) || 0,
+          fundingStageScore:
+            Number(parsed.healthMetrics?.fundingStageScore) || 50,
+          marketPositionScore:
+            Number(parsed.healthMetrics?.marketPositionScore) || 50,
+          techSophisticationScore:
+            Number(parsed.healthMetrics?.techSophisticationScore) || 50,
+        },
       };
       return result;
     } catch (error) {
@@ -320,7 +330,8 @@ export function registerCompanyRoutes(
         website = `https://${website}`;
       }
       const workspace = manager.active();
-      if (!workspace) {
+      const hasWorkspace = workspace || request.tenantContext?.activeWorkspaceId;
+      if (!hasWorkspace) {
         return reply
           .status(400)
           .send({ success: false, error: "No active workspace" });
@@ -384,7 +395,8 @@ export function registerCompanyRoutes(
       }
 
       const workspace = manager.active();
-      if (!workspace) {
+      const hasWorkspace = workspace || request.tenantContext?.activeWorkspaceId;
+      if (!hasWorkspace) {
         return reply
           .status(400)
           .send({ success: false, error: "No active workspace" });
