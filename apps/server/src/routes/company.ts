@@ -41,7 +41,7 @@ async function fetchWebsiteContent(url: string): Promise<string> {
     const response = await fetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; BusinessOS/1.0; +https://business-os.ai/bot)",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Accept:
           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
@@ -266,7 +266,7 @@ export function registerCompanyRoutes(
     {
       schema: {
         body: z.object({
-          website: z.string().url("Must be a valid URL"),
+          website: z.string().min(1, "Website URL is required"),
         }),
         response: {
           200: z.object({
@@ -296,7 +296,11 @@ export function registerCompanyRoutes(
           .send({ success: false, error: "Database offline" });
       }
 
-      const { website } = request.body;
+      let { website } = request.body;
+      website = website.trim();
+      if (!/^https?:\/\//i.test(website)) {
+        website = `https://${website}`;
+      }
       const workspace = manager.active();
       if (!workspace) {
         return reply
