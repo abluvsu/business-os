@@ -224,4 +224,26 @@ export async function initializeDatabaseTables(sqlite: any): Promise<void> {
       records_synced INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  await executeDdl(`
+    CREATE TABLE IF NOT EXISTS company_profiles (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      website TEXT,
+      industry TEXT,
+      stage TEXT,
+      description TEXT,
+      value_proposition TEXT,
+      target_audience TEXT,
+      business_model TEXT,
+      competitor_names TEXT,
+      competitor_urls TEXT,
+      health_metrics TEXT,
+      extracted_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+  `);
 }
