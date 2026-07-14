@@ -74,13 +74,36 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
 
 export default function Home() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
+  const [isSandbox, setIsSandbox] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsSandbox(localStorage.getItem("businessos_sandbox") === "true");
+    }
+  }, []);
+
+  const useClerkAuth = hasClerk && !isSandbox;
 
   // Bind global api token resolver
   useEffect(() => {
-    if (hasClerk && getToken) {
+    if (useClerkAuth && getToken) {
       setTokenResolver(getToken);
+    } else {
+      setTokenResolver(async () => null);
     }
-  }, [getToken]);
+  }, [getToken, useClerkAuth]);
+
+  const enterSandbox = () => {
+    localStorage.setItem("businessos_sandbox", "true");
+    setIsSandbox(true);
+    window.location.reload();
+  };
+
+  const exitSandbox = () => {
+    localStorage.removeItem("businessos_sandbox");
+    setIsSandbox(false);
+    window.location.reload();
+  };
 
   const [loading, setLoading] = useState(true);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
@@ -131,7 +154,7 @@ export default function Home() {
   // Check company profile after login
   useEffect(() => {
     const checkCompanyProfile = async () => {
-      if (!hasClerk || !isSignedIn) {
+      if (useClerkAuth && !isSignedIn) {
         setCompanyProfileChecked(true);
         return;
       }
@@ -151,9 +174,13 @@ export default function Home() {
     };
 
     checkCompanyProfile();
-  }, [isSignedIn, isLoaded]);
+  }, [isSignedIn, isLoaded, useClerkAuth]);
 
   const checkStatus = async () => {
+    if (useClerkAuth && !isSignedIn) {
+      setLoading(false);
+      return;
+    }
     try {
       const activeRes = await authenticatedFetch(
         `${API_BASE}/api/workspace/active`,
@@ -260,7 +287,7 @@ export default function Home() {
   };
 
   // Guard dashboard screens if Clerk is active
-  if (hasClerk && isLoaded && !isSignedIn) {
+  if (useClerkAuth && isLoaded && !isSignedIn) {
     return (
       <div className="min-h-screen bg-[#070709] text-neutral-200 font-sans selection:bg-purple-500/35 flex flex-col">
         {/* Glowing Background Gradients */}
@@ -317,17 +344,17 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full">
             <button
               onClick={() => setIsAuthOpen(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold px-8 py-3.5 rounded-xl transition-all shadow-xl hover:shadow-white/10"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold px-8 py-3.5 rounded-xl transition-all shadow-xl hover:shadow-white/10 cursor-pointer"
             >
               <span>Launch BusinessOS</span>
               <ArrowRight className="h-4 w-4" />
             </button>
             <button
-              onClick={() => setIsAuthOpen(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 text-sm font-semibold px-8 py-3.5 rounded-xl transition-all"
+              onClick={enterSandbox}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 text-sm font-semibold px-8 py-3.5 rounded-xl transition-all cursor-pointer"
             >
-              <Play className="h-3.5 w-3.5 fill-white" />
-              <span>Watch Demo</span>
+              <Sparkles className="h-4 w-4 text-purple-400 animate-pulse" />
+              <span>Bypass Auth (Sandbox Mode)</span>
             </button>
           </div>
 
@@ -401,7 +428,7 @@ export default function Home() {
     );
   }
 
-  if (loading || (hasClerk && !isLoaded)) {
+  if (loading || (useClerkAuth && !isLoaded) || !companyProfileChecked) {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center flex-col">
         <Activity className="h-8 w-8 text-neutral-400 animate-pulse mb-3" />
@@ -412,16 +439,8 @@ export default function Home() {
     );
   }
 
-  // Show company onboarding if no profile exists and user is signed in
-  if (hasClerk && isSignedIn && !companyProfileChecked) {
-    return (
-      <div className="min-h-screen bg-[#070709] flex items-center justify-center p-6">
-        <Activity className="h-8 w-8 text-neutral-400 animate-pulse" />
-      </div>
-    );
-  }
-
-  if (hasClerk && isSignedIn && !onboardingComplete) {
+  // Show company onboarding if no profile exists
+  if (!onboardingComplete) {
     return (
       <CompanyOnboarding
         onComplete={handleCompanyOnboardingComplete}
@@ -520,11 +539,23 @@ export default function Home() {
             {activeWorkspace.name}
           </span>
         </div>
-        {hasClerk && isSignedIn && (
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4">
+          {isSandbox && (
+            <div className="flex items-center gap-2 bg-yellow-500/5 border border-yellow-500/20 px-3 py-1 rounded-xl shadow-inner">
+              <span className="h-1.5 w-1.5 rounded-full bg-yellow-500 animate-pulse" />
+              <span className="text-xs text-yellow-400 font-mono font-medium">Sandbox Mode</span>
+              <button
+                onClick={exitSandbox}
+                className="text-[10px] bg-white/5 hover:bg-white/10 text-white border border-white/10 px-2 py-0.5 rounded-md ml-1.5 transition-all cursor-pointer font-sans"
+              >
+                Exit Sandbox
+              </button>
+            </div>
+          )}
+          {useClerkAuth && isSignedIn && (
             <UserButton afterSignOutUrl="/" />
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
