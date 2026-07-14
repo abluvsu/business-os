@@ -34,44 +34,92 @@ const createAIClient = () => {
 };
 
 async function fetchWebsiteContent(url: string): Promise<string> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const MAX_RETRIES = 2;
+  const TIMEOUT_MS = 15000;
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-      signal: controller.signal,
-    });
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    clearTimeout(timeoutId);
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Cache-Control": "no-cache",
+        },
+        signal: controller.signal,
+        redirect: "follow",
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // Don't retry client errors (4xx) except 429 (rate limit)
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          throw new Error(
+            `Website returned HTTP ${response.status}. The site may be blocking automated access.`,
+          );
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const html = await response.text();
+
+      // Extract text content from HTML (basic extraction)
+      const textContent = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&[a-z]+;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 15000); // Limit to ~15k chars for token efficiency
+
+      return textContent;
+    } catch (error) {
+      const isAbort =
+        error instanceof Error && error.name === "AbortError";
+      const isTransient =
+        error instanceof Error &&
+        (error.message.includes("HTTP 5") ||
+          error.message.includes("HTTP 429") ||
+          error.message.includes("ECONNRESET") ||
+          error.message.includes("ETIMEDOUT") ||
+          error.message.includes("fetch failed") ||
+          isAbort);
+
+      if (isTransient && attempt < MAX_RETRIES) {
+        const delay = (attempt + 1) * 1500;
+        console.warn(
+          `⚠️ [Website Fetch] Attempt ${attempt + 1} failed for ${url}, retrying in ${delay}ms...`,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      console.error(`Failed to fetch website ${url}:`, error);
+
+      if (isAbort) {
+        throw new Error(
+          "Website took too long to respond. It may be down or blocking automated requests.",
+        );
+      }
+
+      throw new Error(
+        `Could not fetch website: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
-
-    const html = await response.text();
-
-    // Extract text content from HTML (basic extraction)
-    const textContent = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 15000); // Limit to ~15k chars for token efficiency
-
-    return textContent;
-  } catch (error) {
-    console.error(`Failed to fetch website ${url}:`, error);
-    throw new Error(
-      `Could not fetch website: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
   }
+
+  // Should never reach here, but TypeScript requires it
+  throw new Error("Could not fetch website after multiple attempts.");
 }
 
 async function extractCompanyIntelligence(
@@ -330,7 +378,8 @@ export function registerCompanyRoutes(
         website = `https://${website}`;
       }
       const workspace = manager.active();
-      const hasWorkspace = workspace || request.tenantContext?.activeWorkspaceId;
+      const hasWorkspace =
+        workspace || request.tenantContext?.activeWorkspaceId;
       if (!hasWorkspace) {
         return reply
           .status(400)
@@ -395,7 +444,8 @@ export function registerCompanyRoutes(
       }
 
       const workspace = manager.active();
-      const hasWorkspace = workspace || request.tenantContext?.activeWorkspaceId;
+      const hasWorkspace =
+        workspace || request.tenantContext?.activeWorkspaceId;
       if (!hasWorkspace) {
         return reply
           .status(400)

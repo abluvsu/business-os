@@ -34,8 +34,24 @@ fastify.register(compress, {
 });
 
 // Register CORS for web app communication
+const allowedOrigins = (process.env.WEB_URL || "http://localhost:3000")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+// Always allow localhost for local dev
+if (!allowedOrigins.includes("http://localhost:3000")) {
+  allowedOrigins.push("http://localhost:3000");
+}
+
 fastify.register(cors, {
-  origin: process.env.WEB_URL || "http://localhost:3000",
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, curl, health checks)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some((allowed) => origin === allowed || origin.endsWith(".vercel.app"))) {
+      return callback(null, true);
+    }
+    callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
