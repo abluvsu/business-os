@@ -2,7 +2,11 @@ import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import crypto from "crypto";
-import { WorkspaceManager, WorkspacePolicyRepository, WorkspacePolicyService } from "@business-os/workspace";
+import {
+  WorkspaceManager,
+  WorkspacePolicyRepository,
+  WorkspacePolicyService,
+} from "@business-os/workspace";
 
 export function registerWorkspacePolicyRoutes(
   fastify: FastifyInstance,
@@ -24,7 +28,15 @@ export function registerWorkspacePolicyRoutes(
   const policySchema = z.object({
     id: z.string(),
     workspaceId: z.string(),
-    type: z.enum(["BRAND", "CONTENT", "COMPLIANCE", "MARKETING", "LEGAL", "STYLE", "CUSTOM"]),
+    type: z.enum([
+      "BRAND",
+      "CONTENT",
+      "COMPLIANCE",
+      "MARKETING",
+      "LEGAL",
+      "STYLE",
+      "CUSTOM",
+    ]),
     category: z.string(),
     title: z.string(),
     rule: z.string(),
@@ -62,9 +74,11 @@ export function registerWorkspacePolicyRoutes(
         const policies = await service.getPolicies();
         return { success: true as const, policies };
       } catch (err: any) {
-        return reply.status(400).send({ success: false as const, error: err.message });
+        return reply
+          .status(400)
+          .send({ success: false as const, error: err.message });
       }
-    }
+    },
   );
 
   server.post(
@@ -72,7 +86,15 @@ export function registerWorkspacePolicyRoutes(
     {
       schema: {
         body: z.object({
-          type: z.enum(["BRAND", "CONTENT", "COMPLIANCE", "MARKETING", "LEGAL", "STYLE", "CUSTOM"]),
+          type: z.enum([
+            "BRAND",
+            "CONTENT",
+            "COMPLIANCE",
+            "MARKETING",
+            "LEGAL",
+            "STYLE",
+            "CUSTOM",
+          ]),
           category: z.string(),
           title: z.string(),
           rule: z.string(),
@@ -94,8 +116,18 @@ export function registerWorkspacePolicyRoutes(
     async (request, reply) => {
       try {
         const service = getPolicyService(request);
-        const { type, category, title, rule, description, severity, enabled, metadata, createdBy } = request.body;
-        
+        const {
+          type,
+          category,
+          title,
+          rule,
+          description,
+          severity,
+          enabled,
+          metadata,
+          createdBy,
+        } = request.body;
+
         const policy = await service.createPolicy({
           id: crypto.randomUUID(),
           type,
@@ -111,9 +143,11 @@ export function registerWorkspacePolicyRoutes(
 
         return { success: true as const, policy };
       } catch (err: any) {
-        return reply.status(400).send({ success: false as const, error: err.message });
+        return reply
+          .status(400)
+          .send({ success: false as const, error: err.message });
       }
-    }
+    },
   );
 
   server.patch(
@@ -122,7 +156,17 @@ export function registerWorkspacePolicyRoutes(
       schema: {
         params: z.object({ id: z.string() }),
         body: z.object({
-          type: z.enum(["BRAND", "CONTENT", "COMPLIANCE", "MARKETING", "LEGAL", "STYLE", "CUSTOM"]).optional(),
+          type: z
+            .enum([
+              "BRAND",
+              "CONTENT",
+              "COMPLIANCE",
+              "MARKETING",
+              "LEGAL",
+              "STYLE",
+              "CUSTOM",
+            ])
+            .optional(),
           category: z.string().optional(),
           title: z.string().optional(),
           rule: z.string().optional(),
@@ -151,11 +195,15 @@ export function registerWorkspacePolicyRoutes(
         return { success: true as const, policy };
       } catch (err: any) {
         if (err.message.includes("Conflict")) {
-          return reply.status(409).send({ success: false as const, error: err.message });
+          return reply
+            .status(409)
+            .send({ success: false as const, error: err.message });
         }
-        return reply.status(400).send({ success: false as const, error: err.message });
+        return reply
+          .status(400)
+          .send({ success: false as const, error: err.message });
       }
-    }
+    },
   );
 
   server.delete(
@@ -178,9 +226,11 @@ export function registerWorkspacePolicyRoutes(
         await service.deletePolicy(id);
         return { success: true as const };
       } catch (err: any) {
-        return reply.status(400).send({ success: false as const, error: err.message });
+        return reply
+          .status(400)
+          .send({ success: false as const, error: err.message });
       }
-    }
+    },
   );
 
   server.post(
@@ -206,8 +256,10 @@ export function registerWorkspacePolicyRoutes(
         const policy = await service.togglePolicy(id, enabled);
         return { success: true as const, policy };
       } catch (err: any) {
-        return reply.status(400).send({ success: false as const, error: err.message });
+        return reply
+          .status(400)
+          .send({ success: false as const, error: err.message });
       }
-    }
+    },
   );
 }

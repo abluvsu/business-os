@@ -6,6 +6,9 @@ import {
   observations,
   businessEntities,
   companyProfiles,
+  WorkspaceContextBuilder,
+  WorkspaceContextCache,
+  WorkspacePromptFormatter,
 } from "@business-os/workspace";
 import { eq } from "drizzle-orm";
 import OpenAI from "openai";
@@ -57,60 +60,22 @@ export function registerMarketingRoutes(
       if (!db) return reply.status(500).send({ text: "Database offline." });
 
       try {
-        // Fetch company profile for context
         const tenantContext = (request as any).tenantContext;
         const workspaceId = tenantContext?.activeWorkspaceId;
-
-        let companyProfile = null;
-        if (workspaceId) {
-          const profiles = await db
-            .select()
-            .from(companyProfiles)
-            .where(eq(companyProfiles.workspaceId, workspaceId))
-            .limit(1);
-          companyProfile = profiles[0] || null;
-        }
 
         const entities = await request.repo!.getBusinessEntities();
         const metrics = await request.repo!.getObservations();
 
-        const contextSummary = entities
-          .map(
-            (e: { id: string; name: string; status: string; type: string }) => {
-              const entityMetrics = metrics.filter(
-                (m: { entityId: string | null }) => m.entityId === e.id,
-              );
-              const metricsStr = entityMetrics
-                .map(
-                  (m: { observationType: string; value: number }) =>
-                    `${m.observationType}: ${m.value}`,
-                )
-                .join(", ");
-              return `[${e.type}] ${e.name} (${e.status}): ${metricsStr || "no metrics"}`;
-            },
-          )
-          .join("\n");
-
-        // Include company profile in context
-        let companyContext = "";
-        if (companyProfile) {
-          const competitors = companyProfile.competitorNames?.length
-            ? `\nCompetitors: ${companyProfile.competitorNames.join(", ")}`
-            : "";
-          const healthMetrics = companyProfile.healthMetrics
-            ? `\nHealth Metrics: ${JSON.stringify(companyProfile.healthMetrics)}`
-            : "";
-
-          companyContext = `
-=== COMPANY PROFILE ===
-Company: ${companyProfile.name}
-${companyProfile.website ? `Website: ${companyProfile.website}` : ""}
-${companyProfile.industry ? `Industry: ${companyProfile.industry}` : ""}
-${companyProfile.stage ? `Stage: ${companyProfile.stage}` : ""}
-${companyProfile.businessModel ? `Business Model: ${companyProfile.businessModel}` : ""}
-${companyProfile.description ? `Description: ${companyProfile.description}` : ""}
-${companyProfile.valueProposition ? `Value Proposition: ${companyProfile.valueProposition}` : ""}
-${companyProfile.targetAudience ? `Target Audience: ${companyProfile.targetAudience}` : ""}${competitors}${healthMetrics}`;
+        let workspaceContext = null;
+        let formattedWorkspaceContext = "";
+        if (workspaceId) {
+          workspaceContext = WorkspaceContextCache.get(workspaceId);
+          if (!workspaceContext) {
+            const builder = new WorkspaceContextBuilder(db, tenantContext);
+            workspaceContext = await builder.build();
+            WorkspaceContextCache.set(workspaceId, workspaceContext);
+          }
+          formattedWorkspaceContext = WorkspacePromptFormatter.format(workspaceContext);
         }
 
         const campaigns = entities.filter(
@@ -141,7 +106,7 @@ ${companyProfile.targetAudience ? `Target Audience: ${companyProfile.targetAudie
 
         const systemPrompt = `You are BusinessOS, an expert marketing analyst.
 Here is the current performance context from the SQLite database:
-${contextSummary}${companyContext}
+${formattedWorkspaceContext}
 
 Provide a 2-3 sentence analysis of the data focusing on the user's question.
 

@@ -7,3 +7,6 @@ export * from "./manager";
 export * from "./db/connection";
 export * from "./repositories/WorkspacePolicyRepository";
 export * from "./services/WorkspacePolicyService";
+export * from "./context/WorkspaceContextBuilder";
+export * from "./cache/WorkspaceContextCache";
+export * from "./formatting/WorkspacePromptFormatter";
