@@ -214,6 +214,67 @@ const contextPlugin: FastifyPluginAsync<ContextPluginOptions> = async (fastify, 
       const activeWorkspaceId = (request.headers["x-workspace-id"] as string) || "mock-workspace-id";
       const role = (request.headers["x-role"] as string) || "owner";
 
+      // Auto-provision mock records in database if they don't exist
+      try {
+        const userRows = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+
+        if (userRows.length === 0) {
+          console.log("🚀 [Mock Auto-Provisioning] Initializing mock tenant ecosystem...");
+          await db.transaction(async (tx: any) => {
+            await tx.insert(users).values({
+              id: userId,
+              clerkUserId: "mock-clerk-user-id",
+              email: "mock-founder@businessos.local",
+              createdAt: new Date().toISOString(),
+            }).onConflictDoNothing();
+
+            await tx.insert(organizations).values({
+              id: organizationId,
+              name: "Mock Company",
+              createdAt: new Date().toISOString(),
+            }).onConflictDoNothing();
+
+            await tx.insert(memberships).values({
+              id: "mock-membership-id",
+              userId,
+              organizationId,
+              role: "owner",
+              createdAt: new Date().toISOString(),
+            }).onConflictDoNothing();
+
+            await tx.insert(workspaces).values({
+              id: activeWorkspaceId,
+              organizationId,
+              name: "Mock Workspace",
+              createdAt: new Date().toISOString(),
+            }).onConflictDoNothing();
+          });
+          console.log("✅ [Mock Auto-Provisioning] Mock tenant ecosystem ready.");
+        } else {
+          // Double check if workspace exists
+          const workspaceRows = await db
+            .select()
+            .from(workspaces)
+            .where(eq(workspaces.id, activeWorkspaceId))
+            .limit(1);
+
+          if (workspaceRows.length === 0) {
+            await db.insert(workspaces).values({
+              id: activeWorkspaceId,
+              organizationId,
+              name: "Mock Workspace",
+              createdAt: new Date().toISOString(),
+            }).onConflictDoNothing();
+          }
+        }
+      } catch (err: any) {
+        fastify.log.error(err, "Failed to auto-provision mock records");
+      }
+
       tenantContext = {
         userId,
         organizationId,
