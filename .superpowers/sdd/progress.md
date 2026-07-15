@@ -11,4 +11,5 @@
 - Task 5: complete (commits 9a91535, review clean)
 - Task 6: complete (commits 9a91535, review clean)
 - Task 7: complete (commits bdbabc1, review clean)
+- Task 8: complete (commits 4c4f4fc, review clean)
 <!-- Task completions will be recorded here -->
