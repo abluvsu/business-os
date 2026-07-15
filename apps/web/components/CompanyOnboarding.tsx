@@ -67,6 +67,152 @@ interface CompanyOnboardingProps {
   apiBase: string;
 }
 
+function BusinessSnapshotCard({
+  intel,
+  isLoading = false,
+}: {
+  intel: CompanyProfile | null;
+  isLoading?: boolean;
+}) {
+  if (isLoading || !intel) {
+    return (
+      <div className="bg-[#0c0c0e] border border-white/10 rounded-2xl p-6 space-y-6 animate-pulse">
+        {/* Header Shimmer */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2 flex-1">
+            <div className="h-6 bg-white/10 rounded w-48" />
+            <div className="h-3.5 bg-white/5 rounded w-32" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-6 bg-white/10 rounded-lg w-20" />
+            <div className="h-5 bg-white/10 rounded-full w-24" />
+          </div>
+        </div>
+
+        {/* Info Grid Shimmer */}
+        <div className="grid gap-4 md:grid-cols-2 border-t border-white/5 pt-4">
+          <div className="space-y-2">
+            <div className="h-3 bg-white/5 rounded w-28" />
+            <div className="h-4 bg-white/10 rounded w-full" />
+          </div>
+          <div className="space-y-2">
+            <div className="h-3 bg-white/5 rounded w-24" />
+            <div className="h-4 bg-white/10 rounded w-full" />
+          </div>
+        </div>
+
+        {/* Value Prop Shimmer */}
+        <div className="border-t border-white/5 pt-4 space-y-2">
+          <div className="h-3 bg-white/5 rounded w-36" />
+          <div className="h-12 bg-white/10 rounded w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-[#0e0e12] to-[#0c0c0e] border border-white/10 rounded-2xl p-6 space-y-6 shadow-xl relative overflow-hidden group hover:border-white/20 transition-all duration-300">
+      {/* Visual background accents */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Header with Business Name & Website URL */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h4 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-neutral-400" />
+            {intel.name}
+          </h4>
+          {intel.website && (
+            <a
+              href={intel.website.startsWith("http") ? intel.website : `https://${intel.website}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-neutral-400 hover:text-white transition-colors flex items-center gap-1 font-mono"
+            >
+              <Globe className="h-3 w-3 text-neutral-500" />
+              {intel.website}
+            </a>
+          )}
+        </div>
+        
+        {/* Industry Badge with AI Confidence */}
+        <div className="flex flex-col items-start md:items-end gap-1.5">
+          <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">
+            Industry
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="bg-white/5 border border-white/10 text-white text-xs px-2.5 py-1 rounded-lg font-medium">
+              {intel.industry || "Technology"}
+            </span>
+            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium animate-pulse">
+              <Sparkles className="h-2.5 w-2.5 text-emerald-400" />
+              95% confidence
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Info Grid */}
+      <div className="grid gap-4 md:grid-cols-2 border-t border-white/5 pt-4">
+        {/* Target Customers */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+            <Users className="h-3.5 w-3.5 text-neutral-400" />
+            Target Customers
+          </div>
+          <p className="text-sm text-neutral-300 leading-relaxed">
+            {intel.targetAudience || "Not specified"}
+          </p>
+        </div>
+
+        {/* Business details */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+            <Zap className="h-3.5 w-3.5 text-neutral-400" />
+            Business Profile
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {intel.stage && (
+              <span className="bg-neutral-900 border border-white/5 text-neutral-400 text-[11px] px-2 py-0.5 rounded-md capitalize">
+                Stage: {intel.stage}
+              </span>
+            )}
+            {intel.businessModel && (
+              <span className="bg-neutral-900 border border-white/5 text-neutral-400 text-[11px] px-2 py-0.5 rounded-md capitalize">
+                Model: {intel.businessModel}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Value Proposition */}
+      <div className="border-t border-white/5 pt-4 space-y-1.5">
+        <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+          <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+          Primary Value Proposition
+        </div>
+        <p className="text-sm text-neutral-200 font-medium leading-relaxed bg-white/[0.02] border border-white/5 rounded-xl p-3.5">
+          {intel.valueProposition || "Not specified"}
+        </p>
+      </div>
+
+      {/* Description if present */}
+      {intel.description && (
+        <div className="border-t border-white/5 pt-4 space-y-1.5">
+          <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">
+            Description
+          </div>
+          <p className="text-xs text-neutral-400 leading-relaxed italic">
+            "{intel.description}"
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CompanyOnboarding({
   onComplete,
   apiBase,
@@ -84,6 +230,8 @@ export function CompanyOnboarding({
   const [scanLogs, setScanLogs] = useState<string[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editIntel, setEditIntel] = useState<CompanyProfile | null>(null);
 
   const runScanningSimulation = async (url: string) => {
     const logs = [
@@ -471,21 +619,7 @@ export function CompanyOnboarding({
                   <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">
                     Estimated Profile Structure
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="border border-white/5 bg-white/5 rounded-xl p-3 h-16 animate-pulse space-y-2">
-                      <div className="h-2 bg-white/10 rounded w-1/3" />
-                      <div className="h-3 bg-white/15 rounded w-2/3" />
-                    </div>
-                    <div className="border border-white/5 bg-white/5 rounded-xl p-3 h-16 animate-pulse space-y-2">
-                      <div className="h-2 bg-white/10 rounded w-1/4" />
-                      <div className="h-3 bg-white/15 rounded w-1/2" />
-                    </div>
-                  </div>
-                  <div className="border border-white/5 bg-white/5 rounded-xl p-3 h-20 animate-pulse space-y-2">
-                    <div className="h-2 bg-white/10 rounded w-1/5" />
-                    <div className="h-3 bg-white/15 rounded w-5/6" />
-                    <div className="h-3 bg-white/15 rounded w-4/6" />
-                  </div>
+                  <BusinessSnapshotCard intel={null} isLoading={true} />
                 </div>
               </div>
             )}
@@ -597,7 +731,7 @@ export function CompanyOnboarding({
 
         {/* Step 3: Review */}
         {step === "review" && intel && (
-          <div className="bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl space-y-6">
+          <div className="bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden min-h-[400px]">
             <div className="flex items-center justify-between border-b border-white/5 pb-4">
               <button
                 onClick={() => setStep("input")}
@@ -607,239 +741,277 @@ export function CompanyOnboarding({
                 <span>Re-enter URL</span>
               </button>
               <h3 className="text-lg font-bold text-white pr-10">
-                Review & Edit Profile
+                AI Business Snapshot
               </h3>
               <div />
             </div>
 
-            {/* Basic Info */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  value={intel.name}
-                  onChange={(e) => setIntel({ ...intel, name: e.target.value })}
-                  className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white font-medium focus:outline-none transition-colors py-0.5 text-sm"
-                />
-              </div>
-              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                  Website URL
-                </label>
-                <input
-                  type="url"
-                  value={intel.website || ""}
-                  onChange={(e) => setIntel({ ...intel, website: e.target.value || null })}
-                  className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-blue-400 font-mono text-sm focus:outline-none transition-colors py-0.5"
-                  placeholder="https://yourcompany.com"
-                />
-              </div>
-            </div>
-
-            {/* AI Extracted Info */}
-            <div className="space-y-4 border-t border-white/5 pt-4">
-              <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
-                <Sparkles className="h-3 w-3 text-purple-400" />
-                Company Intelligence Details
-              </h4>
-              
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                    Industry
-                  </label>
-                  <input
-                    type="text"
-                    value={intel.industry || ""}
-                    onChange={(e) => setIntel({ ...intel, industry: e.target.value || null })}
-                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
-                    placeholder="e.g. SaaS"
-                  />
-                </div>
-                
-                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                    Stage
-                  </label>
-                  <select
-                    value={intel.stage || "seed"}
-                    onChange={(e) => setIntel({ ...intel, stage: e.target.value })}
-                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
-                  >
-                    <option value="pre-seed" className="bg-[#0c0c0e] text-white">Pre-Seed</option>
-                    <option value="seed" className="bg-[#0c0c0e] text-white">Seed</option>
-                    <option value="growth" className="bg-[#0c0c0e] text-white">Growth</option>
-                    <option value="scale" className="bg-[#0c0c0e] text-white">Scale</option>
-                    <option value="mature" className="bg-[#0c0c0e] text-white">Mature</option>
-                  </select>
-                </div>
-
-                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                    Business Model
-                  </label>
-                  <select
-                    value={intel.businessModel || "SaaS"}
-                    onChange={(e) => setIntel({ ...intel, businessModel: e.target.value })}
-                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
-                  >
-                    <option value="SaaS" className="bg-[#0c0c0e] text-white">SaaS</option>
-                    <option value="E-commerce" className="bg-[#0c0c0e] text-white">E-commerce</option>
-                    <option value="Marketplace" className="bg-[#0c0c0e] text-white">Marketplace</option>
-                    <option value="Services" className="bg-[#0c0c0e] text-white">Services</option>
-                    <option value="Freemium" className="bg-[#0c0c0e] text-white">Freemium</option>
-                    <option value="Enterprise" className="bg-[#0c0c0e] text-white">Enterprise</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                    Value Proposition
-                  </label>
-                  <input
-                    type="text"
-                    value={intel.valueProposition || ""}
-                    onChange={(e) => setIntel({ ...intel, valueProposition: e.target.value || null })}
-                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
-                    placeholder="Describe core value prop..."
-                  />
-                </div>
-                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                    Target Audience (ICP)
-                  </label>
-                  <input
-                    type="text"
-                    value={intel.targetAudience || ""}
-                    onChange={(e) => setIntel({ ...intel, targetAudience: e.target.value || null })}
-                    className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5"
-                    placeholder="Describe ICP/audience..."
-                  />
-                </div>
-              </div>
-
-              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-1.5">
-                <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                  Company Description
-                </label>
-                <textarea
-                  value={intel.description || ""}
-                  onChange={(e) => setIntel({ ...intel, description: e.target.value || null })}
-                  rows={2}
-                  className="w-full bg-transparent border-b border-transparent focus:border-white/30 text-white text-sm focus:outline-none transition-colors py-0.5 resize-none"
-                  placeholder="2-3 sentence description..."
-                />
-              </div>
-
-              {/* Competitors Tag Manager */}
-              <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-2">
-                <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
-                  <Users className="h-3 w-3 text-neutral-400" />
-                  Competitor Names
-                </label>
-                <div className="flex flex-wrap gap-2 items-center">
-                  {(intel.competitorNames || []).map((comp, i) => (
-                    <span
-                      key={i}
-                      className="bg-neutral-900 border border-white/10 text-neutral-300 text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5"
-                    >
-                      <span>{comp}</span>
-                      <button
-                        onClick={() => {
-                          const updated = (intel.competitorNames || []).filter((_, index) => index !== i);
-                          setIntel({ ...intel, competitorNames: updated });
-                        }}
-                        className="text-neutral-500 hover:text-neutral-300 transition-colors"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <div className="flex items-center gap-1 bg-black/20 border border-white/10 rounded-lg px-2.5 py-1">
-                    <input
-                      type="text"
-                      placeholder="Add competitor..."
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          const val = e.currentTarget.value.trim();
-                          if (val && !(intel.competitorNames || []).includes(val)) {
-                            setIntel({
-                              ...intel,
-                              competitorNames: [...(intel.competitorNames || []), val],
-                            });
-                            e.currentTarget.value = "";
-                          }
-                        }
-                      }}
-                      className="bg-transparent border-none text-xs text-white placeholder-neutral-600 focus:outline-none w-28"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Health Metrics */}
-              {intel.healthMetrics && Object.keys(intel.healthMetrics).length > 0 && (
-                <div className="bg-black/30 border border-white/5 p-3 rounded-xl space-y-2">
-                  <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3 text-neutral-400" />
-                    Metrics & Audit Scores
-                  </label>
-                  <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
-                    {Object.entries(intel.healthMetrics).map(([key, value]) => (
-                      <div key={key} className="p-2 bg-black/20 rounded-lg border border-white/5 space-y-1">
-                        <span className="text-[9px] text-neutral-500 uppercase tracking-wider block truncate">
-                          {key.replace(/([A-Z])/g, " $1").trim()}
-                        </span>
-                        <input
-                          type="number"
-                          value={value}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setIntel({
-                              ...intel,
-                              healthMetrics: {
-                                ...intel.healthMetrics,
-                                [key]: val,
-                              },
-                            });
-                          }}
-                          className="w-full bg-transparent text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-white/20 pb-0.5"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Read-only Snapshot Card */}
+            <BusinessSnapshotCard intel={intel} isLoading={false} />
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-white/5">
+            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-white/5">
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3.5 rounded-xl transition-all disabled:opacity-50 animate-fadeIn"
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin text-black" />
                 ) : (
                   <CheckCircle className="h-4 w-4 text-black" />
                 )}
-                <span>{saving ? "Saving..." : "Save & Continue"}</span>
+                <span>{saving ? "Saving..." : "Yes, Looks Right"}</span>
               </button>
               <button
-                onClick={handleSkip}
-                className="flex-1 flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-sm font-semibold py-3 rounded-xl transition-all border border-white/10"
+                onClick={() => {
+                  setEditIntel(JSON.parse(JSON.stringify(intel)));
+                  setIsEditing(true);
+                }}
+                className="flex-1 flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-sm font-semibold py-3.5 rounded-xl transition-all border border-white/10"
               >
-                <Shield className="h-4 w-4 text-neutral-400" />
-                <span>Skip for now</span>
+                <Sparkles className="h-4 w-4 text-purple-400" />
+                <span>Edit Details</span>
               </button>
             </div>
+
+            {/* Overlay Edit State */}
+            {isEditing && editIntel && (
+              <div className="absolute inset-0 bg-[#070709]/95 backdrop-blur-md z-30 p-6 flex flex-col justify-between overflow-y-auto">
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-purple-400 animate-pulse" />
+                      Edit Details
+                    </h3>
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="p-1 rounded-lg hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Form fields */}
+                  <div className="space-y-4 py-2">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                          Company Name
+                        </label>
+                        <input
+                          type="text"
+                          value={editIntel.name}
+                          onChange={(e) => setEditIntel({ ...editIntel, name: e.target.value })}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                          Website URL
+                        </label>
+                        <input
+                          type="url"
+                          value={editIntel.website || ""}
+                          onChange={(e) => setEditIntel({ ...editIntel, website: e.target.value || null })}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors font-mono"
+                          placeholder="https://yourcompany.com"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                          Industry
+                        </label>
+                        <input
+                          type="text"
+                          value={editIntel.industry || ""}
+                          onChange={(e) => setEditIntel({ ...editIntel, industry: e.target.value || null })}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                          placeholder="e.g. SaaS"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                          Stage
+                        </label>
+                        <select
+                          value={editIntel.stage || "seed"}
+                          onChange={(e) => setEditIntel({ ...editIntel, stage: e.target.value })}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        >
+                          <option value="pre-seed" className="bg-[#0c0c0e]">Pre-Seed</option>
+                          <option value="seed" className="bg-[#0c0c0e]">Seed</option>
+                          <option value="growth" className="bg-[#0c0c0e]">Growth</option>
+                          <option value="scale" className="bg-[#0c0c0e]">Scale</option>
+                          <option value="mature" className="bg-[#0c0c0e]">Mature</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                          Business Model
+                        </label>
+                        <select
+                          value={editIntel.businessModel || "SaaS"}
+                          onChange={(e) => setEditIntel({ ...editIntel, businessModel: e.target.value })}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        >
+                          <option value="SaaS" className="bg-[#0c0c0e]">SaaS</option>
+                          <option value="E-commerce" className="bg-[#0c0c0e]">E-commerce</option>
+                          <option value="Marketplace" className="bg-[#0c0c0e]">Marketplace</option>
+                          <option value="Services" className="bg-[#0c0c0e]">Services</option>
+                          <option value="Freemium" className="bg-[#0c0c0e]">Freemium</option>
+                          <option value="Enterprise" className="bg-[#0c0c0e]">Enterprise</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                        Primary Value Proposition
+                      </label>
+                      <input
+                        type="text"
+                        value={editIntel.valueProposition || ""}
+                        onChange={(e) => setEditIntel({ ...editIntel, valueProposition: e.target.value || null })}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        placeholder="Describe core value prop..."
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                        Target Customers (ICP)
+                      </label>
+                      <input
+                        type="text"
+                        value={editIntel.targetAudience || ""}
+                        onChange={(e) => setEditIntel({ ...editIntel, targetAudience: e.target.value || null })}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        placeholder="Describe target customers..."
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                        Company Description
+                      </label>
+                      <textarea
+                        value={editIntel.description || ""}
+                        onChange={(e) => setEditIntel({ ...editIntel, description: e.target.value || null })}
+                        rows={2}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors resize-none"
+                        placeholder="2-3 sentence description..."
+                      />
+                    </div>
+
+                    {/* Competitors Tag Manager */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center gap-1">
+                        <Users className="h-3 w-3 text-neutral-400" />
+                        Competitor Names
+                      </label>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {(editIntel.competitorNames || []).map((comp, i) => (
+                          <span
+                            key={i}
+                            className="bg-neutral-900 border border-white/10 text-neutral-300 text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5"
+                          >
+                            <span>{comp}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = (editIntel.competitorNames || []).filter((_, index) => index !== i);
+                                setEditIntel({ ...editIntel, competitorNames: updated });
+                              }}
+                              className="text-neutral-500 hover:text-neutral-300 transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                        <div className="flex items-center gap-1 bg-black/20 border border-white/10 rounded-lg px-2.5 py-1">
+                          <input
+                            type="text"
+                            placeholder="Add competitor..."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const val = e.currentTarget.value.trim();
+                                if (val && !(editIntel.competitorNames || []).includes(val)) {
+                                  setEditIntel({
+                                    ...editIntel,
+                                    competitorNames: [...(editIntel.competitorNames || []), val],
+                                  });
+                                  e.currentTarget.value = "";
+                                }
+                              }
+                            }}
+                            className="bg-transparent border-none text-xs text-white placeholder-neutral-600 focus:outline-none w-28"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Health Metrics */}
+                    {editIntel.healthMetrics && Object.keys(editIntel.healthMetrics).length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3 text-neutral-400" />
+                          Metrics & Audit Scores
+                        </label>
+                        <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+                          {Object.entries(editIntel.healthMetrics).map(([key, value]) => (
+                            <div key={key} className="p-2 bg-black/20 rounded-lg border border-white/5 space-y-1">
+                              <span className="text-[9px] text-neutral-500 uppercase tracking-wider block truncate">
+                                {key.replace(/([A-Z])/g, " $1").trim()}
+                              </span>
+                              <input
+                                type="number"
+                                value={value}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  setEditIntel({
+                                    ...editIntel,
+                                    healthMetrics: {
+                                      ...editIntel.healthMetrics,
+                                      [key]: val,
+                                    },
+                                  });
+                                }}
+                                className="w-full bg-transparent text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-white/20 pb-0.5"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Apply / Cancel */}
+                <div className="flex gap-3 pt-4 border-t border-white/10 mt-6 shrink-0">
+                  <button
+                    onClick={() => {
+                      setIntel(editIntel);
+                      setIsEditing(false);
+                    }}
+                    className="flex-1 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all"
+                  >
+                    Apply Changes
+                  </button>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-sm font-semibold py-3 rounded-xl transition-all border border-white/10"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
