@@ -101,8 +101,13 @@ export function CompanyOnboarding({
   };
 
   const extractNameFromUrl = (url: string): string => {
+    let target = url.trim();
+    if (!target) return "My Company";
+    if (!/^https?:\/\//i.test(target)) {
+      target = `https://${target}`;
+    }
     try {
-      const domain = new URL(url).hostname;
+      const domain = new URL(target).hostname;
       const parts = domain.replace("www.", "").split(".");
       if (parts.length > 0 && parts[0]) {
         return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
@@ -281,12 +286,13 @@ export function CompanyOnboarding({
         companyName: intelData.name,
         industry: intelData.industry,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Analysis error:", err);
       // Wait for log simulation to complete
       await simulationPromise;
+      const errMsg = err instanceof Error ? err.message : String(err);
       setScanError(
-        err.message || "Failed to analyze website. The server may be unreachable or block automated access."
+        errMsg || "Failed to analyze website. The server may be unreachable or block automated access."
       );
     } finally {
       setScanning(false);
@@ -314,8 +320,9 @@ export function CompanyOnboarding({
         companyName: intel.name,
       });
       onComplete(intel);
-    } catch (err: any) {
-      setError(err.message || "Failed to save profile");
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setError(errMsg || "Failed to save profile");
     } finally {
       setSaving(false);
     }
