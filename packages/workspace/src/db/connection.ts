@@ -246,4 +246,42 @@ export async function initializeDatabaseTables(sqlite: any): Promise<void> {
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
+
+  await executeDdl(`
+    CREATE TABLE IF NOT EXISTS onboarding_drafts (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL UNIQUE,
+      draft TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+  `);
+
+  await executeDdl(`
+    CREATE TABLE IF NOT EXISTS workspace_policies (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      rule TEXT NOT NULL,
+      description TEXT,
+      severity TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      metadata TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+  `);
+
+  await executeDdl(`
+    CREATE INDEX IF NOT EXISTS workspace_enabled_idx ON workspace_policies (workspace_id, enabled);
+  `);
+
+  await executeDdl(`
+    CREATE INDEX IF NOT EXISTS workspace_type_idx ON workspace_policies (workspace_id, type);
+  `);
 }

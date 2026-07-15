@@ -5,3 +5,5 @@ export * from "./db/repository";
 export * from "./db/schema";
 export * from "./manager";
 export * from "./db/connection";
+export * from "./repositories/WorkspacePolicyRepository";
+export * from "./services/WorkspacePolicyService";

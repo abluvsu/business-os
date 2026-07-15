@@ -8,6 +8,7 @@ import {
 } from "fastify-type-provider-zod";
 import { WorkspaceManager } from "@business-os/workspace";
 import { registerWorkspaceRoutes } from "./routes/workspace";
+import { registerWorkspacePolicyRoutes } from "./routes/workspace-policies";
 import { registerMarketingRoutes } from "./routes/marketing";
 import { registerConnectorRoutes } from "./routes/connectors";
 import { registerAnalyticsRoutes } from "./routes/analytics";
@@ -65,6 +66,7 @@ fastify.register(contextPlugin, { manager });
 
 // Register Workspace routes
 registerWorkspaceRoutes(fastify, manager);
+registerWorkspacePolicyRoutes(fastify, manager);
 registerMarketingRoutes(fastify, manager);
 registerConnectorRoutes(fastify, manager);
 registerAnalyticsRoutes(fastify, manager);

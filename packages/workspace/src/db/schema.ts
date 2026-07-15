@@ -4,6 +4,7 @@ import {
   integer,
   real,
   unique,
+  index,
 } from "drizzle-orm/sqlite-core";
 
 // ==========================================
@@ -215,4 +216,30 @@ export const onboardingDrafts = sqliteTable("onboarding_drafts", {
   draft: text("draft", { mode: "json" }).notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const workspacePolicies = sqliteTable(
+  "workspace_policies",
+  {
+    id: text("id").primaryKey(), // UUID
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // "BRAND" | "CONTENT" | etc.
+    category: text("category").notNull(),
+    title: text("title").notNull(),
+    rule: text("rule").notNull(),
+    description: text("description"),
+    severity: text("severity").notNull(), // "INFO" | "WARNING" | etc.
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    metadata: text("metadata", { mode: "json" }),
+    version: integer("version").notNull().default(1),
+    createdBy: text("created_by").notNull(), // "SYSTEM" | "FOUNDER" | "AI"
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => ({
+    workspaceEnabledIdx: index("workspace_enabled_idx").on(t.workspaceId, t.enabled),
+    workspaceTypeIdx: index("workspace_type_idx").on(t.workspaceId, t.type),
+  })
+);
 
