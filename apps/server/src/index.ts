@@ -15,6 +15,7 @@ import { registerAnalyticsRoutes } from "./routes/analytics";
 import { registerCompanyRoutes } from "./routes/company";
 import { startSyncWorker, syncEventEmitter } from "./sync-worker";
 import contextPlugin from "./plugins/context";
+import authPlugin from "./plugins/auth";
 
 const fastify = Fastify({
   logger: true,
@@ -48,7 +49,11 @@ fastify.register(cors, {
   origin: (origin, callback) => {
     // Allow requests with no origin (server-to-server, curl, health checks)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.some((allowed) => origin === allowed || origin.endsWith(".vercel.app"))) {
+    if (
+      allowedOrigins.some(
+        (allowed) => origin === allowed || origin.endsWith(".vercel.app"),
+      )
+    ) {
       return callback(null, true);
     }
     callback(new Error(`Origin ${origin} not allowed by CORS`), false);
@@ -64,13 +69,17 @@ const manager = new WorkspaceManager();
 // Register context resolution plugin
 fastify.register(contextPlugin, { manager });
 
-// Register Workspace routes
-registerWorkspaceRoutes(fastify, manager);
-registerWorkspacePolicyRoutes(fastify, manager);
-registerMarketingRoutes(fastify, manager);
-registerConnectorRoutes(fastify, manager);
-registerAnalyticsRoutes(fastify, manager);
-registerCompanyRoutes(fastify, manager);
+// Register Auth plugin and authenticated routes under a protected scope
+fastify.register(async (api) => {
+  api.register(authPlugin);
+
+  registerWorkspaceRoutes(api, manager);
+  registerWorkspacePolicyRoutes(api, manager);
+  registerMarketingRoutes(api, manager);
+  registerConnectorRoutes(api, manager);
+  registerAnalyticsRoutes(api, manager);
+  registerCompanyRoutes(api, manager);
+});
 
 // Start background delta sync polling worker
 startSyncWorker(manager);
@@ -134,7 +143,9 @@ const preflightCheck = () => {
   const isDogfood = process.env.DOGFOOD_MODE === "true";
   if (!isDogfood) return;
 
-  console.log("🔒 [Preflight] Running in strict DOGFOOD mode. Validating configurations...");
+  console.log(
+    "🔒 [Preflight] Running in strict DOGFOOD mode. Validating configurations...",
+  );
   const required = [
     "WEB_URL",
     "API_URL",
@@ -151,9 +162,13 @@ const preflightCheck = () => {
   const missing = required.filter((name) => !process.env[name]);
 
   if (missing.length > 0) {
-    console.error("❌ [Preflight] Missing required environment configurations for DOGFOOD mode:");
+    console.error(
+      "❌ [Preflight] Missing required environment configurations for DOGFOOD mode:",
+    );
     missing.forEach((name) => console.error(`  - ${name}`));
-    console.error("Please configure these in apps/server/.env before running BusinessOS.");
+    console.error(
+      "Please configure these in apps/server/.env before running BusinessOS.",
+    );
     process.exit(1);
   }
   console.log("✅ [Preflight] All configurations present.");
