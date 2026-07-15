@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Globe,
   Sparkles,
@@ -34,6 +34,33 @@ interface CompanyProfile {
   healthMetrics: Record<string, number>;
 }
 
+export type StepId = "scan" | "profile" | "audit" | "competitors" | "success";
+
+export interface OnboardingDraft {
+  websiteUrl: string;
+  companyName: string;
+  logoUrl?: string;
+  currentStep: StepId;
+  completedSteps: StepId[];
+  profile: {
+    industry: string;
+    stage: string;
+    businessModel: string;
+    description: string;
+    valueProposition: string;
+    targetAudience: string;
+    confidence: number;
+  } | null;
+  audit: {
+    seoScore: number;
+    geoScore: number;
+    summary: string;
+    seoIssues: Array<{ name: string; severity: "critical" | "high" | "medium" | "low"; passed: boolean }>;
+    geoIssues: Array<{ name: string; severity: "critical" | "high" | "medium" | "low"; passed: boolean }>;
+  } | null;
+  competitors: Array<{ name: string; website: string; logoUrl?: string }>;
+}
+
 interface CompanyOnboardingProps {
   onComplete: (profile: CompanyProfile) => void;
   apiBase: string;
@@ -52,6 +79,74 @@ export function CompanyOnboarding({
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [draft, setDraft] = useState<OnboardingDraft>(() => {
+    // Attempt local storage load first
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("businessos_onboarding_draft");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return {
+      websiteUrl: "",
+      companyName: "",
+      currentStep: "scan",
+      completedSteps: [],
+      profile: null,
+      audit: null,
+      competitors: []
+    };
+  });
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load server-side draft on mount to merge/sync with local state
+  useEffect(() => {
+    let active = true;
+    async function loadServerDraft() {
+      try {
+        const res = await authenticatedFetch(`${apiBase}/api/workspace/onboarding-draft`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.draft && active) {
+            setDraft(data.draft);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load draft from server:", err);
+      } finally {
+        if (active) {
+          setIsLoaded(true);
+        }
+      }
+    }
+    loadServerDraft();
+    return () => {
+      active = false;
+    };
+  }, [apiBase]);
+
+  // Debounced server synchronization
+  useEffect(() => {
+    localStorage.setItem("businessos_onboarding_draft", JSON.stringify(draft));
+
+    if (!isLoaded) return;
+
+    const timeout = setTimeout(async () => {
+      await authenticatedFetch(`${apiBase}/api/workspace/onboarding-draft`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft })
+      }).catch(() => null);
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [draft, isLoaded, apiBase]);
 
   const handleAnalyzeWebsite = async () => {
     if (!name.trim()) {
