@@ -248,8 +248,7 @@ export function registerWorkspaceRoutes(
       },
     },
     async (request) => {
-      const tenantContext = (request as any).tenantContext;
-      const workspaceId = tenantContext?.activeWorkspaceId;
+      const workspaceId = request.tenantContext?.activeWorkspaceId;
       const db = manager.db;
       if (!workspaceId || !db) return { success: false, draft: null };
 
@@ -270,7 +269,7 @@ export function registerWorkspaceRoutes(
     {
       schema: {
         body: z.object({
-          draft: z.unknown(),
+          draft: z.unknown().refine(val => val !== undefined, "Draft is required"),
         }),
         response: {
           200: z.object({
@@ -284,8 +283,7 @@ export function registerWorkspaceRoutes(
       },
     },
     async (request, reply) => {
-      const tenantContext = (request as any).tenantContext;
-      const workspaceId = tenantContext?.activeWorkspaceId;
+      const workspaceId = request.tenantContext?.activeWorkspaceId;
       const db = manager.db;
       if (!workspaceId || !db) {
         reply.status(400);
