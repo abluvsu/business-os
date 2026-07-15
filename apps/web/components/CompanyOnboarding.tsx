@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Globe,
   Sparkles,
@@ -80,41 +80,47 @@ export function CompanyOnboarding({
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [draft, setDraft] = useState<OnboardingDraft>(() => {
-    // Attempt local storage load first
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("businessos_onboarding_draft");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          // ignore
-        }
-      }
-    }
-    return {
-      websiteUrl: "",
-      companyName: "",
-      currentStep: "scan",
-      completedSteps: [],
-      profile: null,
-      audit: null,
-      competitors: []
-    };
+  const [draft, setDraft] = useState<OnboardingDraft>({
+    websiteUrl: "",
+    companyName: "",
+    currentStep: "scan",
+    completedSteps: [],
+    profile: null,
+    audit: null,
+    competitors: []
   });
 
   const [isLoaded, setIsLoaded] = useState(false);
+  const lastSyncedRef = useRef<string>("");
 
-  // Load server-side draft on mount to merge/sync with local state
+  // Load server-side and local draft on mount
   useEffect(() => {
     let active = true;
-    async function loadServerDraft() {
+    async function loadDraft() {
+      // 1. Try local storage first to render immediately on client after hydration
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("businessos_onboarding_draft");
+        if (saved) {
+          try {
+            const localDraft = JSON.parse(saved) as OnboardingDraft;
+            if (localDraft && active) {
+              setDraft(localDraft);
+              lastSyncedRef.current = saved;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // 2. Fetch server-side draft to sync across devices
       try {
         const res = await authenticatedFetch(`${apiBase}/api/workspace/onboarding-draft`);
         if (res.ok) {
-          const data = await res.json();
+          const data = (await res.json()) as { success: boolean; draft?: OnboardingDraft | null };
           if (data.success && data.draft && active) {
             setDraft(data.draft);
+            lastSyncedRef.current = JSON.stringify(data.draft);
           }
         }
       } catch (err) {
@@ -125,7 +131,7 @@ export function CompanyOnboarding({
         }
       }
     }
-    loadServerDraft();
+    loadDraft();
     return () => {
       active = false;
     };
@@ -133,16 +139,27 @@ export function CompanyOnboarding({
 
   // Debounced server synchronization
   useEffect(() => {
-    localStorage.setItem("businessos_onboarding_draft", JSON.stringify(draft));
-
     if (!isLoaded) return;
 
+    const draftStr = JSON.stringify(draft);
+    localStorage.setItem("businessos_onboarding_draft", draftStr);
+
+    // Prevent redundant sync writes if draft hasn't changed
+    if (draftStr === lastSyncedRef.current) return;
+
     const timeout = setTimeout(async () => {
-      await authenticatedFetch(`${apiBase}/api/workspace/onboarding-draft`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft })
-      }).catch(() => null);
+      try {
+        const res = await authenticatedFetch(`${apiBase}/api/workspace/onboarding-draft`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft })
+        });
+        if (res.ok) {
+          lastSyncedRef.current = draftStr;
+        }
+      } catch (err) {
+        console.error("Failed to sync onboarding draft to server:", err);
+      }
     }, 1000);
 
     return () => clearTimeout(timeout);
