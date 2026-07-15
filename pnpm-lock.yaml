@@ -64,7 +64,7 @@ importers:
         version: 17.4.2
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@libsql/client@0.17.4)
+        version: 0.45.2(@libsql/client@0.17.4)(postgres@3.4.9)
       fastify:
         specifier: ^4.26.2
         version: 4.29.1
@@ -155,7 +155,7 @@ importers:
         version: link:../workspace
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@libsql/client@0.17.4)
+        version: 0.45.2(@libsql/client@0.17.4)(postgres@3.4.9)
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -194,7 +194,10 @@ importers:
         version: 17.4.2
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@libsql/client@0.17.4)
+        version: 0.45.2(@libsql/client@0.17.4)(postgres@3.4.9)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       yaml:
         specifier: ^2.4.5
         version: 2.9.0
@@ -3336,6 +3339,10 @@ packages:
     resolution: {integrity: sha512-vuwillviilfKZsg0VGj5R/YwwcHx4SLsIOI/7K6mQkWx+l5cUHTjj5g0AasTBcyXsbfTgrwsUNmVUb5xVwyPwg==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postgres@3.4.9:
+    resolution: {integrity: sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw==}
+    engines: {node: '>=12'}
+
   prettier@3.9.4:
     resolution: {integrity: sha512-yWG/o/4oJfo036EKAfK6ACAoDOfHeRHx4tuxkfBZiauURiaSmYwlpOr5LQqKtIkRD2z1PLteme2WoxEnj4tHTg==}
     engines: {node: '>=14'}
@@ -5669,9 +5676,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.45.2(@libsql/client@0.17.4):
+  drizzle-orm@0.45.2(@libsql/client@0.17.4)(postgres@3.4.9):
     optionalDependencies:
       '@libsql/client': 0.17.4
+      postgres: 3.4.9
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6903,6 +6911,8 @@ snapshots:
       nanoid: 3.3.15
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postgres@3.4.9: {}
 
   prettier@3.9.4: {}
 
