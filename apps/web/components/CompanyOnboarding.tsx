@@ -16,6 +16,7 @@ import {
   Shield,
   Plus,
   X,
+  RotateCcw,
 } from "lucide-react";
 import { authenticatedFetch } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
@@ -79,6 +80,65 @@ export function CompanyOnboarding({
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [scanLogs, setScanLogs] = useState<string[]>([]);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+
+  const runScanningSimulation = async (url: string) => {
+    const logs = [
+      "🌐 Reading homepage...",
+      "📝 Detecting metadata & brand logos...",
+      "🤖 Extracting business model info...",
+      "🔍 Running SEO visibility checks...",
+      "🗺️ Running GEO AI readiness checks..."
+    ];
+    setScanLogs([]);
+    for (let i = 0; i < logs.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setScanLogs(prev => [...prev, logs[i]]);
+    }
+  };
+
+  const extractNameFromUrl = (url: string): string => {
+    try {
+      const domain = new URL(url).hostname;
+      const parts = domain.replace("www.", "").split(".");
+      if (parts.length > 0 && parts[0]) {
+        return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      }
+    } catch {
+      // ignore
+    }
+    return "My Company";
+  };
+
+  const handleContinueManually = () => {
+    const fallbackName = extractNameFromUrl(website) || "My Company";
+    setName(fallbackName);
+    setIntel({
+      name: fallbackName,
+      website: website.trim() || null,
+      industry: "Technology",
+      stage: "seed",
+      description: "",
+      valueProposition: "",
+      targetAudience: "",
+      businessModel: "SaaS",
+      competitorNames: [],
+      competitorUrls: [],
+      healthMetrics: {
+        estimatedMonthlyTraffic: 0,
+        estimatedTeamSize: 1,
+        fundingStageScore: 20,
+        marketPositionScore: 50,
+        techSophisticationScore: 50,
+        seoHealth: 0,
+        geoHealth: 0,
+      },
+    });
+    setStep("review");
+  };
 
   const [draft, setDraft] = useState<OnboardingDraft>({
     websiteUrl: "",
@@ -166,112 +226,70 @@ export function CompanyOnboarding({
   }, [draft, isLoaded, apiBase]);
 
   const handleAnalyzeWebsite = async () => {
-    if (!name.trim()) {
-      setError("Company name is required");
+    let targetWebsite = website.trim();
+    if (!targetWebsite) {
+      setScanError("Website URL is required");
       return;
     }
 
-    setError(null);
-    setAnalyzing(true);
-    setStep("analyzing");
+    // Basic URL validation
+    const hasProtocol = /^https?:\/\//i.test(targetWebsite);
+    let urlToTest = hasProtocol ? targetWebsite : `https://${targetWebsite}`;
+    try {
+      new URL(urlToTest);
+    } catch {
+      setScanError("Please enter a valid website URL");
+      return;
+    }
+
+    setScanning(true);
+    setScanError(null);
+    setScanLogs([]);
+
+    // Start progressive scan log simulation in parallel
+    const simulationPromise = runScanningSimulation(urlToTest);
 
     try {
-      const intelData: Partial<CompanyProfile> = {
-        name: name.trim(),
-        website: website.trim() || null,
-      };
+      trackEvent("Website Analysis Started", "Activation", {
+        website: urlToTest,
+      });
 
-      if (website.trim()) {
-        trackEvent("Website Analysis Started", "Activation", {
-          companyName: name,
-        });
+      const res = await authenticatedFetch(
+        `${apiBase}/api/company/analyze-website`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ website: urlToTest }),
+        },
+      );
 
-        let targetWebsite = website.trim();
-        if (!/^https?:\/\//i.test(targetWebsite)) {
-          targetWebsite = `https://${targetWebsite}`;
-        }
+      const data = await res.json();
 
-        const res = await authenticatedFetch(
-          `${apiBase}/api/company/analyze-website`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ website: targetWebsite }),
-          },
-        );
-
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to analyze website");
-        }
-
-        intelData.industry = data.intel.industry;
-        intelData.stage = data.intel.stage;
-        intelData.description = data.intel.description;
-        intelData.valueProposition = data.intel.valueProposition;
-        intelData.targetAudience = data.intel.targetAudience;
-        intelData.businessModel = data.intel.businessModel;
-        intelData.competitorNames = data.intel.competitorNames || [];
-        intelData.competitorUrls = data.intel.competitorUrls || [];
-        intelData.healthMetrics = data.intel.healthMetrics || {};
-
-        trackEvent("Website Analysis Completed", "Activation", {
-          companyName: name,
-          industry: data.intel.industry,
-        });
-      } else {
-        intelData.industry = "Technology";
-        intelData.stage = "seed";
-        intelData.businessModel = "SaaS";
-        intelData.description = `${name.trim()} operates in the technology sector.`;
-        intelData.valueProposition = "Providing innovative software solutions.";
-        intelData.targetAudience = "Businesses and developers.";
-        intelData.competitorNames = [];
-        intelData.competitorUrls = [];
-        intelData.healthMetrics = {
-          estimatedMonthlyTraffic: 0,
-          estimatedTeamSize: 1,
-          fundingStageScore: 20,
-          marketPositionScore: 50,
-          techSophisticationScore: 50,
-          seoHealth: 0,
-          geoHealth: 0,
-        };
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to analyze website");
       }
 
-      setIntel(intelData as CompanyProfile);
+      // Wait for log simulation to complete to keep the animation smooth
+      await simulationPromise;
+
+      const intelData = data.intel;
+      setName(intelData.name);
+      setIntel(intelData);
       setStep("review");
+
+      trackEvent("Website Analysis Completed", "Activation", {
+        companyName: intelData.name,
+        industry: intelData.industry,
+      });
     } catch (err: any) {
       console.error("Analysis error:", err);
-      setError(
-        err.message ||
-          "Failed to analyze website. You can continue without it.",
+      // Wait for log simulation to complete
+      await simulationPromise;
+      setScanError(
+        err.message || "Failed to analyze website. The server may be unreachable or block automated access."
       );
-      setIntel({
-        name: name.trim(),
-        website: website.trim() || null,
-        industry: "Technology",
-        stage: "seed",
-        description: "",
-        valueProposition: "",
-        targetAudience: "",
-        businessModel: "SaaS",
-        competitorNames: [],
-        competitorUrls: [],
-        healthMetrics: {
-          estimatedMonthlyTraffic: 0,
-          estimatedTeamSize: 1,
-          fundingStageScore: 20,
-          marketPositionScore: 50,
-          techSophisticationScore: 50,
-          seoHealth: 0,
-          geoHealth: 0,
-        },
-      });
-      setStep("review");
     } finally {
-      setAnalyzing(false);
+      setScanning(false);
     }
   };
 
@@ -340,29 +358,44 @@ export function CompanyOnboarding({
           </div>
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-b from-white to-neutral-400 bg-clip-text text-transparent tracking-tight">
-              Tell us about your company
+              {step === "review" 
+                ? "Review & Edit Profile" 
+                : scanning 
+                ? "Scanning Your Company" 
+                : scanError 
+                ? "Website Scan Failed" 
+                : "Scan Your Company"}
             </h1>
             <p className="text-sm text-neutral-400 mt-2">
-              We&apos;ll use this to personalize your BusinessOS experience and
-              provide relevant insights.
+              {step === "review"
+                ? "Verify and refine the AI-extracted company information below."
+                : scanning
+                ? "Our AI agents are analyzing your website in real-time."
+                : scanError
+                ? "We couldn't extract data from your site. You can retry or setup manually."
+                : "Enter your website URL to instantly build your workspace intelligence."}
             </p>
           </div>
         </div>
 
         {/* Progress Indicator */}
         <div className="flex items-center justify-center gap-2">
-          {["input", "analyzing", "review"].map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <div
-                className={`h-2.5 w-2.5 rounded-full transition-all ${
-                  step === s || (step === "review" && i < 2)
-                    ? "bg-white"
-                    : "bg-white/10"
-                } ${step === "analyzing" && i === 1 ? "animate-pulse" : ""}`}
-              />
-              {i < 2 && <div className="h-px w-12 bg-white/10" />}
-            </div>
-          ))}
+          {[
+            { id: "scan", active: step === "input", pulse: scanning },
+            { id: "review", active: step === "review", pulse: false }
+          ].map((s, i) => {
+            const isActiveOrPassed = s.active || (step === "review" && i === 0);
+            return (
+              <div key={s.id} className="flex items-center gap-2">
+                <div
+                  className={`h-2.5 w-2.5 rounded-full transition-all ${
+                    isActiveOrPassed ? "bg-white" : "bg-white/10"
+                  } ${s.pulse ? "animate-pulse" : ""}`}
+                />
+                {i < 1 && <div className="h-px w-12 bg-white/10" />}
+              </div>
+            );
+          })}
         </div>
 
         {/* Error Message */}
@@ -376,86 +409,183 @@ export function CompanyOnboarding({
           </div>
         )}
 
-        {/* Step 1: Input */}
+        {/* Step 1: Scan */}
         {step === "input" && (
-          <div className="bg-[#0c0c0e] border border-white/10 p-6 rounded-2xl shadow-2xl space-y-6">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-2">
-                  Company Name <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Acme Corp"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
-                  autoFocus
-                />
-              </div>
+          <>
+            {/* Case A: Scanning Loader */}
+            {scanning && (
+              <div className="bg-[#0c0c0e]/80 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden">
+                {/* Neon glow effect */}
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-              <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-2">
-                  Company Website{" "}
-                  <span className="text-neutral-500">(optional)</span>
-                </label>
-                <div className="relative">
-                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-500" />
-                  <input
-                    type="text"
-                    placeholder="https://yourcompany.com"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors pl-12"
-                  />
+                <div className="flex justify-center py-4">
+                  <div className="relative flex items-center justify-center">
+                    <div className="h-20 w-20 rounded-full border-2 border-white/5" />
+                    <div className="absolute inset-0 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+                    <div
+                      className="absolute inset-2 rounded-full border-2 border-blue-500 border-b-transparent animate-spin"
+                      style={{ animationDirection: "reverse", animationDuration: "1.5s" }}
+                    />
+                    <Sparkles className="absolute h-6 w-6 text-purple-400 animate-pulse" />
+                  </div>
                 </div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  We&apos;ll analyze your site to understand your business,
-                  competitors, and market position.
-                </p>
-              </div>
-            </div>
 
-            <button
-              onClick={handleAnalyzeWebsite}
-              disabled={!name.trim()}
-              className="w-full flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Sparkles className="h-4 w-4 text-purple-600 animate-pulse" />
-              <span>Analyze & Continue</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+                <div className="text-center space-y-1">
+                  <h3 className="text-base font-bold text-white">
+                    Analyzing {(() => {
+                      try {
+                        return new URL(website.startsWith('http') ? website : `https://${website}`).hostname;
+                      } catch {
+                        return website;
+                      }
+                    })()}
+                  </h3>
+                  <p className="text-xs text-neutral-400">
+                    Extracting business context, competitors, and market positioning...
+                  </p>
+                </div>
 
-        {/* Step 2: Analyzing */}
-        {step === "analyzing" && (
-          <div className="bg-[#0c0c0e] border border-white/10 p-8 rounded-2xl shadow-2xl text-center space-y-6">
-            <div className="flex justify-center">
-              <div className="relative">
-                <div className="h-24 w-24 rounded-full border-4 border-white/10" />
-                <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
-                <div
-                  className="absolute inset-4 rounded-full border-4 border-purple-500 border-b-transparent animate-spin"
-                  style={{ animationDirection: "reverse" }}
-                />
+                <div className="bg-black/40 border border-white/5 rounded-xl p-4 font-mono text-xs space-y-2 text-neutral-300 max-h-48 overflow-y-auto">
+                  {scanLogs.map((log, idx) => (
+                    <div key={idx} className="flex items-center gap-2 animate-fadeIn">
+                      <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <span>{log}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 text-neutral-500 animate-pulse">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                    <span>Working...</span>
+                  </div>
+                </div>
+
+                {/* Skeletons Preview */}
+                <div className="border-t border-white/5 pt-6 space-y-4">
+                  <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">
+                    Estimated Profile Structure
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="border border-white/5 bg-white/5 rounded-xl p-3 h-16 animate-pulse space-y-2">
+                      <div className="h-2 bg-white/10 rounded w-1/3" />
+                      <div className="h-3 bg-white/15 rounded w-2/3" />
+                    </div>
+                    <div className="border border-white/5 bg-white/5 rounded-xl p-3 h-16 animate-pulse space-y-2">
+                      <div className="h-2 bg-white/10 rounded w-1/4" />
+                      <div className="h-3 bg-white/15 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="border border-white/5 bg-white/5 rounded-xl p-3 h-20 animate-pulse space-y-2">
+                    <div className="h-2 bg-white/10 rounded w-1/5" />
+                    <div className="h-3 bg-white/15 rounded w-5/6" />
+                    <div className="h-3 bg-white/15 rounded w-4/6" />
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold text-white">
-                Analyzing your website...
-              </h3>
-              <p className="text-sm text-neutral-400">
-                Extracting business context, competitors, and market position
-              </p>
-            </div>
-            <div className="flex justify-center gap-6 text-xs text-neutral-500 font-mono">
-              <span>Fetching content...</span>
-              <span>AI Analysis...</span>
-              <span>Structuring data...</span>
-            </div>
-          </div>
+            )}
+
+            {/* Case B: Failed Scan Retry UI */}
+            {!scanning && scanError && (
+              <div className="bg-[#0c0c0e]/80 backdrop-blur-xl border border-red-900/30 p-8 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden">
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-red-500/5 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex justify-center py-2">
+                  <div className="h-16 w-16 bg-red-950/30 border border-red-500/30 rounded-full flex items-center justify-center shadow-lg shadow-red-500/5">
+                    <AlertCircle className="h-8 w-8 text-red-500" />
+                  </div>
+                </div>
+
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-bold text-white">Website Scan Failed</h3>
+                  <p className="text-xs text-red-400 font-mono bg-red-950/20 border border-red-900/30 rounded-lg p-3 max-w-md mx-auto text-left break-words">
+                    {scanError}
+                  </p>
+                </div>
+
+                <div className="space-y-3 bg-black/30 border border-white/5 rounded-xl p-4 text-xs text-neutral-400">
+                  <div className="font-semibold text-neutral-300">Why did this happen?</div>
+                  <ul className="space-y-2 list-disc list-inside">
+                    <li>The website may have active cloud security (e.g. Cloudflare) blocking automated access.</li>
+                    <li>The server took too long to respond (request timeout).</li>
+                    <li>The URL might be typed incorrectly or the server is down.</li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-4 pt-2">
+                  <button
+                    onClick={handleAnalyzeWebsite}
+                    className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3 rounded-xl transition-all"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    <span>Try Scanning Again</span>
+                  </button>
+                  <button
+                    onClick={handleContinueManually}
+                    className="flex-1 flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-sm font-semibold py-3 rounded-xl transition-all border border-white/10"
+                  >
+                    <span>Configure Manually</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Case C: Magic Entry Card */}
+            {!scanning && !scanError && (
+              <div className="bg-[#0c0c0e]/80 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden">
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="space-y-4">
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    Enter your company's website URL below. We will automatically fetch its metadata, analyze the business model, and perform SEO & GEO readiness checks.
+                  </p>
+
+                  <div className="relative group">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl blur opacity-25 group-focus-within:opacity-50 transition duration-500" />
+                    <div className="relative flex items-center bg-black/50 border border-white/10 rounded-xl focus-within:border-white/30 transition-colors">
+                      <Globe className="absolute left-4 h-5 w-5 text-neutral-500" />
+                      <input
+                        type="text"
+                        placeholder="https://yourcompany.com"
+                        value={website}
+                        onChange={(e) => setWebsite(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAnalyzeWebsite();
+                          }
+                        }}
+                        className="w-full bg-transparent border-none rounded-xl py-3.5 pl-12 pr-4 text-sm text-white focus:outline-none placeholder-neutral-600"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  
+                  <p className="text-[10px] text-neutral-500">
+                    Acme Corp website, e.g. stripe.com, vercel.com
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleAnalyzeWebsite}
+                  disabled={!website.trim()}
+                  className="w-full flex items-center justify-center gap-2 bg-white hover:bg-neutral-200 text-black text-sm font-semibold py-3.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
+                >
+                  <Sparkles className="h-4 w-4 text-purple-600 animate-pulse group-hover:scale-110 transition-transform" />
+                  <span>Scan Website with AI</span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    onClick={handleContinueManually}
+                    className="text-xs text-neutral-400 hover:text-white transition-colors underline underline-offset-4"
+                  >
+                    Configure company manually
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Step 3: Review */}
