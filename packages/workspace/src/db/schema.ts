@@ -205,3 +205,14 @@ export const companyProfiles = sqliteTable("company_profiles", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const onboardingDrafts = sqliteTable("onboarding_drafts", {
+  id: text("id").primaryKey(), // UUID
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" })
+    .unique(),
+  draft: text("draft", { mode: "json" }).notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+

@@ -2,11 +2,13 @@ import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
+import crypto from "crypto";
 import {
   WorkspaceManager,
   businessEntities,
   observations,
   workspaces,
+  onboardingDrafts,
 } from "@business-os/workspace";
 
 export function registerWorkspaceRoutes(
@@ -229,6 +231,93 @@ export function registerWorkspaceRoutes(
     async () => {
       manager.close();
       return { success: true as const };
+    },
+  );
+
+  // GET Onboarding Draft
+  server.get(
+    "/api/workspace/onboarding-draft",
+    {
+      schema: {
+        response: {
+          200: z.object({
+            success: z.boolean(),
+            draft: z.unknown(),
+          }),
+        },
+      },
+    },
+    async (request) => {
+      const tenantContext = (request as any).tenantContext;
+      const workspaceId = tenantContext?.activeWorkspaceId;
+      const db = manager.db;
+      if (!workspaceId || !db) return { success: false, draft: null };
+
+      const rows = await db
+        .select()
+        .from(onboardingDrafts)
+        .where(eq(onboardingDrafts.workspaceId, workspaceId))
+        .limit(1);
+
+      if (rows.length === 0) return { success: true, draft: null };
+      return { success: true, draft: rows[0].draft };
+    },
+  );
+
+  // PUT Onboarding Draft
+  server.put(
+    "/api/workspace/onboarding-draft",
+    {
+      schema: {
+        body: z.object({
+          draft: z.unknown(),
+        }),
+        response: {
+          200: z.object({
+            success: z.boolean(),
+          }),
+          400: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+    async (request, reply) => {
+      const tenantContext = (request as any).tenantContext;
+      const workspaceId = tenantContext?.activeWorkspaceId;
+      const db = manager.db;
+      if (!workspaceId || !db) {
+        reply.status(400);
+        return { success: false, error: "No active workspace context" };
+      }
+
+      const { draft } = request.body;
+
+      const rows = await db
+        .select()
+        .from(onboardingDrafts)
+        .where(eq(onboardingDrafts.workspaceId, workspaceId))
+        .limit(1);
+
+      if (rows.length === 0) {
+        await db.insert(onboardingDrafts).values({
+          id: crypto.randomUUID(),
+          workspaceId,
+          draft,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await db
+          .update(onboardingDrafts)
+          .set({
+            draft,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(onboardingDrafts.workspaceId, workspaceId));
+      }
+
+      return { success: true };
     },
   );
 
