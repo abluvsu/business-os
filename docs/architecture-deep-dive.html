@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Why I Rewrote BusinessOS: Multi-Tenant Architecture Lessons</title>
+<meta name="description" content="A technical deep dive into rewriting BusinessOS from a local-first SQLite app into a multi-tenant SaaS platform with Clerk auth, tenant-scoped repositories, and Postgres RLS." />
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js" integrity="sha384-WmdflGW9aGfoBdHc4rRyWzYuAjEmDwMdGdiPNacbwfGKxBW/SO6guzuQ76qjnSlr" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #5a5a5a;
+    --border: #e3e3e3;
+    --code-bg: #f5f5f7;
+    --accent: #4f46e5;
+    --card-bg: #fafafa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14141a;
+      --fg: #e8e8ec;
+      --muted: #a0a0ac;
+      --border: #2e2e38;
+      --code-bg: #1d1d26;
+      --accent: #a5b4fc;
+      --card-bg: #1a1a22;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14141a; --fg: #e8e8ec; --muted: #a0a0ac; --border: #2e2e38;
+    --code-bg: #1d1d26; --accent: #a5b4fc; --card-bg: #1a1a22;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5a5a5a; --border: #e3e3e3;
+    --code-bg: #f5f5f7; --accent: #4f46e5; --card-bg: #fafafa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+  }
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  header.hero {
+    margin-bottom: 40px;
+  }
+  .kicker {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.15;
+    margin: 0 0 16px;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 17px;
+    margin: 0;
+  }
+  h2 {
+    font-size: 24px;
+    margin: 48px 0 16px;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+  h3 {
+    font-size: 18px;
+    margin: 32px 0 12px;
+    color: var(--accent);
+  }
+  p { margin: 0 0 16px; }
+  a { color: var(--accent); }
+  .diagram-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 24px 0;
+    overflow-x: auto;
+  }
+  .diagram-card .mermaid { display: flex; justify-content: center; }
+  .diagram-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  code {
+    font-family: "SF Mono", Consolas, Monaco, "Courier New", monospace;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  pre code { background: none; padding: 0; }
+  blockquote {
+    margin: 24px 0;
+    padding: 4px 20px;
+    border-left: 3px solid var(--accent);
+    color: var(--muted);
+  }
+  .callout {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 24px 0;
+    font-size: 14.5px;
+  }
+  .callout strong { color: var(--fg); }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+  footer {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="kicker">Architecture Deep Dive</div>
+    <h1>Why I Rewrote BusinessOS: Multi-Tenant Architecture Lessons</h1>
+    <p class="subtitle">How a local-first SQLite app became a Clerk-authenticated, tenant-scoped SaaS platform — and the three enforcement layers that make the isolation actually hold.</p>
+  </header>
+
+  <p>For the first several months of building BusinessOS, "architecture" meant one thing: a local SQLite file on disk, opened by a <code>WorkspaceManager</code>, read and written by whichever process happened to be running on the founder's machine. It worked. It was fast. It had exactly one user in mind — the person running it.</p>
+
+  <p>Then I decided to make it a SaaS product, and every one of those simplifying assumptions became a liability. This is the story of what actually broke, what I replaced it with, and the three decisions I'd defend in a design review.</p>
+
+  <h2>The Old Shape: One File, One User, No Boundary</h2>
+
+  <p>The original data layer looked like this:</p>
+
+  <div class="diagram-card">
+    <div class="diagram-label">Before — Local-First</div>
+    <pre class="mermaid">
+graph TD
+    CLI[Local BusinessOS Process]
+    WM[WorkspaceManager]
+    SQLite[(workspace.db — SQLite file on disk)]
+
+    CLI --> WM
+    WM -->|opens by file path| SQLite
+    SQLite -->|owner, workspaceId, everything| CLI
+    </pre>
+  </div>
+
+  <p>There was no login. There was no <code>tenant_id</code> column. <code>WorkspaceManager</code> tracked an "active workspace" the way a text editor tracks an open file — a path on disk, a status flag, nothing more. Isolation between customers wasn't a database concern, it was a filesystem concern: your data was safe because it was <em>your machine</em>.</p>
+
+  <p>That's a completely reasonable architecture for a local-first tool. It is not an architecture that survives contact with a second user, let alone a thousand.</p>
+
+  <h2>The Rewrite: Identity Becomes a First-Class Object</h2>
+
+  <p>The core move wasn't "add a login page." It was: <strong>make every request carry a <code>TenantContext</code>, and make that context the only thing the data layer trusts.</strong></p>
+
+  <div class="diagram-card">
+    <div class="diagram-label">After — Multi-Tenant SaaS</div>
+    <pre class="mermaid">
+graph TD
+    Browser[Next.js SaaS UI]
+    Clerk[Clerk Auth — issues JWT]
+    Fastify[Fastify API — context plugin]
+    TC[TenantContext: userId, orgId, workspaceId, role]
+    Repo[TenantRepository — scoped queries]
+    DB[(Postgres + RLS, tenant_id on every table)]
+
+    Browser -->|1. sign in| Clerk
+    Browser -->|2. Bearer JWT| Fastify
+    Fastify -->|3. verifyToken| Clerk
+    Fastify -->|4. resolve or auto-provision| TC
+    TC --> Repo
+    Repo -->|5. every query WHERE workspaceId = ctx.activeWorkspaceId| DB
+    </pre>
+  </div>
+
+  <p>Three pieces make this work, and each one taught me something the tutorials don't cover.</p>
+
+  <h3>1. Resolve identity once, in a preHandler hook — not per-route</h3>
+
+  <p>Every route handler is tempting ground for an ad-hoc <code>if (userId !== resource.userId) throw 403</code>. That pattern scales badly: it means tenant isolation is only as strong as the least-careful route you wrote. I moved identity resolution into a single Fastify plugin (<code>plugins/context.ts</code>) that runs before every <code>/api/*</code> request, verifies the Clerk JWT, and attaches a fully-resolved <code>TenantContext</code> — <code>userId</code>, <code>organizationId</code>, <code>activeWorkspaceId</code>, <code>role</code> — to the request object. Route handlers never see a raw JWT. They see a context, or they don't get called.</p>
+
+  <p>The side effect I didn't plan for but ended up loving: this is also where <strong>auto-provisioning</strong> lives. First time a Clerk-verified user hits the API, there's no row for them yet — so the hook opens a transaction, creates <code>users</code>, <code>organizations</code>, <code>memberships</code>, and a default <code>workspaces</code> row atomically, and only then builds the context. No separate signup flow, no "finish setting up your account" screen. Signing in <em>is</em> onboarding.</p>
+
+  <pre><code>if (userRows.length === 0) {
+  await db.transaction(async (tx) => {
+    await tx.insert(users).values({ id: userId, clerkUserId, email, ... });
+    await tx.insert(organizations).values({ id: organizationId, ... });
+    await tx.insert(memberships).values({ userId, organizationId, role: "owner" });
+    await tx.insert(workspaces).values({ id: activeWorkspaceId, organizationId, ... });
+  });
+}</code></pre>
+
+  <p>The trade-off: this hook now carries meaningful complexity — including a "self-repair" branch for users whose membership link is missing, which exists purely because I didn't want to write a one-off backfill migration for early test accounts. That's a deliberate hack, not an oversight, and it's the kind of thing I'd flag in review: it buys time now, and it should have an expiry date.</p>
+
+  <h3>2. Push isolation down to the repository, not the route</h3>
+
+  <p>Even with a trustworthy <code>TenantContext</code>, I didn't want isolation to depend on every future route author remembering to filter by workspace. So the context never reaches <code>db</code> directly — it's wrapped in a <code>TenantRepository</code> that's the <em>only</em> sanctioned way to touch tenant data:</p>
+
+  <pre><code>async getKnowledgeSources() {
+  return this.db
+    .select()
+    .from(schema.knowledgeSources)
+    .where(eq(schema.knowledgeSources.workspaceId, this.context.activeWorkspaceId));
+}
+
+async insertKnowledgeSource(data) {
+  return this.db.insert(schema.knowledgeSources).values({
+    ...data,
+    workspaceId: this.context.activeWorkspaceId,
+    tenantId: this.context.userId,
+  });
+}</code></pre>
+
+  <p>Notice what's missing from the caller's contract: there's no <code>workspaceId</code> parameter to forget or spoof. It's injected from the context the repository was constructed with. A route handler that wants another tenant's data literally cannot express that query — the repository's type signature doesn't allow it. That's the property I actually care about: <strong>the compiler and the constructor enforce isolation, not code review discipline.</strong></p>
+
+  <h3>3. Defense in depth: repository scoping and database-level RLS</h3>
+
+  <p>The <code>TenantRepository</code> layer is the one I trust today, but I don't trust it <em>alone</em>. The SaaS spec lays out the second layer: every table carries a <code>tenant_id</code>, Postgres Row-Level Security is enabled per table, and policies enforce <code>tenant_id = request.jwt.claims.sub</code> at the database itself:</p>
+
+  <pre><code>ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_policy ON workspaces
+    FOR ALL
+    USING (tenant_id = request.jwt.claims.sub);</code></pre>
+
+  <p>This is the layer that saves you when the application layer has a bug — a missing <code>.where()</code> clause, a repository method someone bypassed with a raw query, a future contributor who didn't know the rule. Application-layer scoping is ergonomic and fast to write against; RLS is the backstop that doesn't care how careful your TypeScript was. I'd rather have both and rarely need the second one than have only the first and find out the hard way.</p>
+
+  <h2>What I'd Do Differently</h2>
+
+  <p>Two decisions I'm still watching:</p>
+
+  <div class="callout">
+    <strong>Mock fallback mode.</strong> When <code>CLERK_SECRET_KEY</code> isn't set, the context plugin falls back to reading <code>x-user-id</code> / <code>x-workspace-id</code> headers directly and auto-provisioning the same way. This kept local development and CI zero-config — no Clerk account required to run tests. The risk is obvious: that branch has to be provably unreachable in production, forever, or it's an authentication bypass wearing a "local dev" label. Right now that guarantee lives in one <code>if (clerk)</code> check. It should probably live somewhere more load-bearing before this ships broadly.
+  </div>
+
+  <div class="callout">
+    <strong>SQLite-shaped schema, Postgres-shaped ambitions.</strong> The current <code>TenantRepository</code> runs against the same Drizzle schema whether the backing store is local SQLite (via <code>node:sqlite</code> or Turso/libSQL) or the target multi-tenant Postgres. That's deliberate — it let me ship the identity and scoping model before committing to infrastructure. But <code>tenant_id</code> as a nullable <code>TEXT</code> column on a SQLite table is not the same guarantee as an RLS-enforced column on Postgres, and I'm aware the migration isn't just a <code>pg_dump</code>.
+  </div>
+
+  <h2>The Actual Lesson</h2>
+
+  <p>The rewrite wasn't really about swapping databases or adding a login screen — those are the parts that show up in a diagram. The real work was deciding <em>where</em> tenant identity gets to enter the system (one hook), <em>how far</em> it's allowed to travel unchecked (nowhere — it's wrapped before it touches data), and <em>how many independent layers</em> get to say no before a query runs (two: repository scoping, and RLS as backstop). Everything else was plumbing.</p>
+
+  <footer>
+    Published as part of the BusinessOS engineering notes.
+  </footer>
+
+</div>
+
+<script>
+  function initMermaid() {
+    var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var rootAttr = document.documentElement.getAttribute('data-theme');
+    if (rootAttr === 'dark') isDark = true;
+    if (rootAttr === 'light') isDark = false;
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: isDark ? 'dark' : 'default',
+      securityLevel: 'loose',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
+    });
+  }
+  initMermaid();
+</script>
+
+</body>
+</html>
